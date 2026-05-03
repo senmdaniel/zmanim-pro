@@ -1,37 +1,42 @@
 #!/bin/bash
+set -e
 
 echo "🚀 Zmanim PRO installer v1..."
 
+APP_DIR="/opt/zmanim"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 
 sudo apt update -y
 sudo apt install -y python3 python3-venv python3-pip curl
 
-mkdir -p /home/mjd/zmanim-pro
-cd /home/mjd/zmanim-pro
+echo "📁 Creating app directory..."
+sudo mkdir -p $APP_DIR
+cd $APP_DIR
 
-# download files
-curl -O $REPO/server.py
-curl -O $REPO/config.json
-curl -O $REPO/version.txt
-curl -O $REPO/update.sh
+echo "⬇️ Downloading files..."
+sudo curl -fsSL "$REPO/server.py" -o server.py
+sudo curl -fsSL "$REPO/config.json" -o config.json
+sudo curl -fsSL "$REPO/version.txt" -o version.txt
+sudo curl -fsSL "$REPO/update.sh" -o update.sh
 
-# python env
+sudo chmod +x update.sh
+
+echo "🐍 Setting up Python environment..."
 python3 -m venv zmanim-env
-source zmanim-env/bin/activate
+./zmanim-env/bin/pip install --upgrade pip
+./zmanim-env/bin/pip install flask zmanim convertdate
 
-pip install flask zmanim convertdate
+echo "⚙️ Creating systemd service..."
 
-# systemd service
 sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
 [Unit]
 Description=Zmanim PRO
 After=network.target
 
 [Service]
-User=mjd
-WorkingDirectory=/home/mjd/zmanim-pro
-ExecStart=/home/mjd/zmanim-pro/zmanim-env/bin/python /home/mjd/zmanim-pro/server.py
+User=$USER
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/zmanim-env/bin/python $APP_DIR/server.py
 Restart=always
 RestartSec=5
 
@@ -39,8 +44,10 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+echo "🔄 Starting service..."
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim
 sudo systemctl restart zmanim
 
-echo "✅ Zmanim PRO installed!"
+echo "✅ Installation complete!"
+echo "👉 Running on: http://localhost:5000"

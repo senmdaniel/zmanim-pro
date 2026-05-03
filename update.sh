@@ -1,61 +1,50 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO updater (fix convertdate issue)"
-
 APP_DIR="/opt/zmanim"
-SERVICE_NAME="zmanim"
-VENV="$APP_DIR/zmanim-env"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
+SERVICE="zmanim"
 
-log() { echo -e "👉 $1"; }
+echo "🔄 Checking updates..."
 
-download() {
-    local url=$1
-    local file=$2
-    log "Downloading $file"
-    curl -fsSL "$url" -o "$file"
-}
+LOCAL=$(cat $APP_DIR/version.txt 2>/dev/null || echo "0.0.0")
+REMOTE=$(curl -fsSL $REPO/version.txt)
 
-# Stop service
-log "Stopping service..."
-sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
+echo "Local:  $LOCAL"
+echo "Remote: $REMOTE"
 
-# Update files from GitHub
-FILES=("server.py" "yom_tov.py" "requirements.txt" "version.txt" "config.json")
-for f in "${FILES[@]}"; do
-    download "$REPO/$f" "$APP_DIR/$f"
-done
-
-# Ensure venv exists
-if [ ! -d "$VENV" ]; then
-    log "⚠️ venv missing → creating..."
-    python3 -m venv "$VENV"
+if [ "$LOCAL" = "$REMOTE" ]; then
+  echo "✔ Already up to date"
+  exit 0
 fi
 
-# Upgrade pip and install dependencies inside venv
-log "Installing Python dependencies in venv..."
-"$VENV/bin/pip" install --upgrade pip setuptools wheel
-"$VENV/bin/pip" install -r "$APP_DIR/requirements.txt"
+echo "⬆️ Update available"
 
-# HARD FIX: install convertdate explicitly
-"$VENV/bin/pip" install --no-cache-dir convertdate
+sudo systemctl stop $SERVICE
 
-# Restart service using correct venv
-log "Restarting service..."
+BACKUP="/opt/zmanim_backup/$LOCAL"
+sudo mkdir -p "$BACKUP"
+sudo cp -r $APP_DIR "$BACKUP" || true
+
+echo "💾 Backup created at $BACKUP"
+
+cd $APP_DIR
+
+# 🔥 FORCE CLEAN DEPENDENCIES
+rm -rf zmanim-env
+python3 -m venv zmanim-env
+
+./zmanim-env/bin/pip install --upgrade pip
+./zmanim-env/bin/pip install -r requirements.txt
+
+# 🔥 refresh code from GitHub
+curl -fsSL $REPO/server.py -o server.py
+curl -fsSL $REPO/yom_tov.py -o yom_tov.py
+curl -fsSL $REPO/requirements.txt -o requirements.txt
+
+echo "$REMOTE" > version.txt
+
 sudo systemctl daemon-reload
-sudo systemctl restart $SERVICE_NAME
+sudo systemctl restart $SERVICE
 
-sleep 3
-
-# Health check
-URL="http://127.0.0.1:5000/zmanim?date=$(date +%F)"
-if curl -fsS "$URL" >/dev/null; then
-    echo "✅ UPDATE SUCCESS - API WORKING"
-else
-    echo "❌ UPDATE FAILED - CHECK LOGS"
-    journalctl -u $SERVICE_NAME -n 50 --no-pager
-    exit 1
-fi
-
-echo "🎉 DONE"
+echo "✅ Updated to $REMOTE"

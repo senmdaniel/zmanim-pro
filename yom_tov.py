@@ -5,6 +5,9 @@ def get_yom_tov_day(date):
     month = h[1]
     day = h[2]
 
+    # -------------------------
+    # PESACH
+    # -------------------------
     if month == 1:
         if day == 15:
             return "pesach_1"
@@ -17,12 +20,18 @@ def get_yom_tov_day(date):
         if day == 22:
             return "acharon_shel_pesach"
 
+    # -------------------------
+    # SHAVUOT
+    # -------------------------
     if month == 3:
         if day == 6:
             return "shavuot_1"
         if day == 7:
             return "shavuot_2"
 
+    # -------------------------
+    # ROSH HASHANA / YK / SUKKOT
+    # -------------------------
     if month == 7:
         if day == 1:
             return "rosh_hashana_1"
@@ -30,6 +39,7 @@ def get_yom_tov_day(date):
             return "rosh_hashana_2"
         if day == 10:
             return "yom_kippur"
+
         if day == 15:
             return "sukkot_1"
         if day == 16:
@@ -48,3 +58,9 @@ def get_yom_tov_day(date):
 
 def is_yom_tov(date):
     return get_yom_tov_day(date) is not None
+
+
+def is_erev_yom_tov(date):
+    """Erev Yom Tov = dag vóór een YT"""
+    from datetime import timedelta
+    return is_yom_tov(date + timedelta(days=1))

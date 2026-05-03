@@ -1,65 +1,76 @@
 #!/bin/bash
-set -euo pipefail
 
 APP_DIR="/opt/zmanim"
-REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
+REPO_DIR="/opt/zmanim"
+BACKUP_DIR="/opt/zmanim_backup"
+VENV="$APP_DIR/zmanim-env"
+VERSION_FILE="$APP_DIR/version.txt"
 
 echo "🔄 Checking updates..."
 
-LOCAL=$(cat "$APP_DIR/version.txt" 2>/dev/null || echo "0.0.0")
-REMOTE=$(curl -fsSL "$REPO/version.txt" || echo "0.0.0")
+cd $REPO_DIR || exit 1
+
+LOCAL=$(cat version.txt)
+REMOTE=$(curl -s https://raw.githubusercontent.com/YOUR_GITHUB_USER/zmanim_calendar/main/version.txt)
 
 echo "Local:  $LOCAL"
 echo "Remote: $REMOTE"
 
-if [ "$LOCAL" = "$REMOTE" ]; then
+if [ "$LOCAL" == "$REMOTE" ]; then
     echo "✔ Already up to date"
     exit 0
 fi
 
 echo "⬆️ Update available"
 
-# 🧯 BACKUP (IMPORTANT)
-BACKUP_DIR="/opt/zmanim_backup/$LOCAL"
+# -----------------------
+# BACKUP (NO ROOT REQUIRED)
+# -----------------------
 mkdir -p "$BACKUP_DIR"
+cp -r "$APP_DIR" "$BACKUP_DIR/$LOCAL"
 
-cp -r "$APP_DIR"/* "$BACKUP_DIR/"
+echo "💾 Backup created at $BACKUP_DIR/$LOCAL"
 
-echo "💾 Backup created at $BACKUP_DIR"
+# -----------------------
+# PULL FROM GIT
+# -----------------------
+cd $APP_DIR || exit 1
 
-# 📦 TEMP DOWNLOAD
-TMP="/tmp/zmanim_update"
-rm -rf "$TMP"
-mkdir -p "$TMP"
+git reset --hard
+git pull origin main
 
-curl -fsSL "$REPO/server.py" -o "$TMP/server.py"
-curl -fsSL "$REPO/config.json" -o "$TMP/config.json"
-curl -fsSL "$REPO/version.txt" -o "$TMP/version.txt"
+# -----------------------
+# FIX PERMISSIONS
+# -----------------------
+chown -R mjd:mjd $APP_DIR
 
-# 🧪 VALIDATE
-if [ ! -s "$TMP/server.py" ]; then
-    echo "❌ Download failed"
-    exit 1
+# -----------------------
+# INSTALL REQUIREMENTS IN VENV
+# -----------------------
+source $VENV/bin/activate
+
+pip install --upgrade pip
+pip install -r requirements.txt
+
+deactivate
+
+# -----------------------
+# FIX COMMON BREAKS
+# -----------------------
+
+# remove broken leftover files
+rm -f $APP_DIR/yom_tov.py.broken 2>/dev/null
+
+# ensure file exists
+if [ ! -f "$APP_DIR/yom_tov.py" ]; then
+    echo "⚠️ Missing yom_tov.py - restoring from repo"
+    git checkout main -- yom_tov.py
 fi
 
-# 🚀 APPLY UPDATE
-cp "$TMP/server.py" "$APP_DIR/server.py"
-cp "$TMP/config.json" "$APP_DIR/config.json"
-cp "$TMP/version.txt" "$APP_DIR/version.txt"
-
+# -----------------------
+# RESTART SERVICE
+# -----------------------
 echo "🔄 Restarting service..."
-sudo systemctl restart zmanim
+systemctl restart zmanim
 
-sleep 2
-
-if systemctl is-active --quiet zmanim; then
-    echo "✅ Updated to $REMOTE"
-else
-    echo "❌ Update failed → rolling back"
-
-    cp -r "$BACKUP_DIR"/* "$APP_DIR/"
-
-    sudo systemctl restart zmanim
-
-    echo "🔁 Rollback completed"
-fi
+echo "✅ Updated to $REMOTE"

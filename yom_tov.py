@@ -1,4 +1,3 @@
-from datetime import timedelta
 from convertdate import hebrew
 
 def get_yom_tov_day(date):
@@ -6,6 +5,7 @@ def get_yom_tov_day(date):
     month = h[1]
     day = h[2]
 
+    # Pesach
     if month == 1:
         if day == 15:
             return "pesach_1"
@@ -18,12 +18,14 @@ def get_yom_tov_day(date):
         if day == 22:
             return "acharon_shel_pesach"
 
+    # Shavuot
     if month == 3:
         if day == 6:
             return "shavuot_1"
         if day == 7:
             return "shavuot_2"
 
+    # Tishrei
     if month == 7:
         if day == 1:
             return "rosh_hashana_1"
@@ -49,7 +51,3 @@ def get_yom_tov_day(date):
 
 def is_yom_tov(date):
     return get_yom_tov_day(date) is not None
-
-
-def is_erev_yom_tov(date):
-    return is_yom_tov(date + timedelta(days=1))

@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify
 from zmanim.util.geo_location import GeoLocation
 from zmanim.zmanim_calendar import ZmanimCalendar
-from convertdate import hebrew
 import datetime
 import json
 import os

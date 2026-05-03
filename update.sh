@@ -1,105 +1,61 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO ULTRA updater v2"
+echo "🚀 Zmanim PRO updater (fix convertdate issue)"
 
 APP_DIR="/opt/zmanim"
-REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 SERVICE_NAME="zmanim"
+VENV="$APP_DIR/zmanim-env"
+REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 
 log() { echo -e "👉 $1"; }
 
 download() {
-  local url=$1
-  local file=$2
-
-  log "Downloading $file"
-  curl -fsSL "$url" -o "$file"
+    local url=$1
+    local file=$2
+    log "Downloading $file"
+    curl -fsSL "$url" -o "$file"
 }
 
-# ---------------- STOP SERVICE ----------------
+# Stop service
 log "Stopping service..."
 sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
 
-# ---------------- VERIFY APP DIR ----------------
-if [ ! -d "$APP_DIR" ]; then
-  echo "❌ /opt/zmanim missing → run install.sh first"
-  exit 1
-fi
-
-cd "$APP_DIR"
-
-# ---------------- SYNC FILES ----------------
-log "Syncing GitHub files..."
-
-FILES=(
-  "server.py"
-  "config.json"
-  "version.txt"
-  "yom_tov.py"
-  "requirements.txt"
-)
-
+# Update files from GitHub
+FILES=("server.py" "yom_tov.py" "requirements.txt" "version.txt" "config.json")
 for f in "${FILES[@]}"; do
-  download "$REPO/$f" "$f"
+    download "$REPO/$f" "$APP_DIR/$f"
 done
 
-chmod +x update.sh
-
-# ---------------- VERSION CHECK ----------------
-LOCAL_VERSION=$(cat version.txt 2>/dev/null || echo "unknown")
-REMOTE_VERSION=$(curl -fsSL "$REPO/version.txt")
-
-echo "📦 Local:  $LOCAL_VERSION"
-echo "📦 Remote: $REMOTE_VERSION"
-
-if [ "$LOCAL_VERSION" = "$REMOTE_VERSION" ]; then
-  echo "✔ Already up to date"
-else
-  echo "⬆️ Updating to $REMOTE_VERSION"
-fi
-
-# ---------------- VENV HEALTH CHECK ----------------
-log "Checking Python environment..."
-
-VENV="$APP_DIR/zmanim-env"
-
+# Ensure venv exists
 if [ ! -d "$VENV" ]; then
-  echo "⚠️ venv missing → recreating..."
-  python3 -m venv "$VENV"
+    log "⚠️ venv missing → creating..."
+    python3 -m venv "$VENV"
 fi
 
-# Always repair pip environment (important fix)
-$VENV/bin/pip install --upgrade pip setuptools wheel
+# Upgrade pip and install dependencies inside venv
+log "Installing Python dependencies in venv..."
+"$VENV/bin/pip" install --upgrade pip setuptools wheel
+"$VENV/bin/pip" install -r "$APP_DIR/requirements.txt"
 
-# Install dependencies safely
-log "Installing requirements..."
-$VENV/bin/pip install --no-cache-dir -r requirements.txt
+# HARD FIX: install convertdate explicitly
+"$VENV/bin/pip" install --no-cache-dir convertdate
 
-# HARD FIX: prevent runtime crashes
-$VENV/bin/pip install --no-cache-dir flask convertdate
-
-# ---------------- SYSTEMD RELOAD ----------------
+# Restart service using correct venv
 log "Restarting service..."
 sudo systemctl daemon-reload
 sudo systemctl restart $SERVICE_NAME
-sudo systemctl enable $SERVICE_NAME
 
 sleep 3
 
-# ---------------- HEALTH CHECK ----------------
-log "Health check..."
-
+# Health check
 URL="http://127.0.0.1:5000/zmanim?date=$(date +%F)"
-
 if curl -fsS "$URL" >/dev/null; then
-  echo "✅ UPDATE SUCCESS"
+    echo "✅ UPDATE SUCCESS - API WORKING"
 else
-  echo "❌ UPDATE FAILED - CHECK LOGS"
-  journalctl -u $SERVICE_NAME -n 50 --no-pager
-  exit 1
+    echo "❌ UPDATE FAILED - CHECK LOGS"
+    journalctl -u $SERVICE_NAME -n 50 --no-pager
+    exit 1
 fi
 
-echo ""
 echo "🎉 DONE"
-echo "👉 API: http://192.168.178.114:5000/zmanim"

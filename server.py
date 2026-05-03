@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from zmanim.util.geo_location import GeoLocation
 from zmanim.zmanim_calendar import ZmanimCalendar
+from convertdate import hebrew
 import datetime
 import json
 import os
@@ -21,7 +22,6 @@ def load_config():
 
 CITIES = {
     "antwerp": (51.2194, 4.4025, "Europe/Brussels"),
-    "jerusalem": (31.7683, 35.2137, "Asia/Jerusalem"),
     "london": (51.5074, -0.1278, "Europe/London")
 }
 
@@ -43,6 +43,39 @@ def parse_date(date_str):
         return datetime.date(y, m, d)
     except:
         return None
+
+# ---------------------------
+# Diaspora Yom Tov logic
+# ---------------------------
+
+def is_yom_tov(date):
+    """Check of het een diaspora yom tov is."""
+    h = hebrew.from_gregorian(date.year, date.month, date.day)
+    month = h[1]
+    day = h[2]
+
+    # Pesach diaspora
+    if month == 1 and day in [15, 16, 21, 22]:
+        return True
+    # Shavuot diaspora
+    if month == 3 and day in [6, 7]:
+        return True
+    # Rosh Hashana
+    if month == 7 and day in [1, 2]:
+        return True
+    # Yom Kippur
+    if month == 7 and day == 10:
+        return True
+    # Sukkot diaspora (Sukkot + Shemini Atzeret/Simchat Torah)
+    if month == 7 and day in [15, 16, 21, 22]:
+        return True
+
+    return False
+
+def is_erev_yom_tov(date):
+    """Check of het de dag voor een yom tov is."""
+    next_day = date + datetime.timedelta(days=1)
+    return is_yom_tov(next_day)
 
 # ---------------------------
 # Endpoint
@@ -122,12 +155,19 @@ def zmanim():
             "sof_zman_tfila_ma": fmt(sof_tfila_ma),
 
             "hebrew": hebrew_date,
-            "city": city
+            "city": city,
+
+            # ✅ nieuwe velden
+            "is_yom_tov": is_yom_tov(date),
+            "is_erev_yom_tov": is_erev_yom_tov(date)
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------------------------
+# MAIN
+# ---------------------------
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

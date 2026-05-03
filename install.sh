@@ -1,24 +1,23 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO installer v2 (stable)"
+echo "🚀 Zmanim PRO installer v3 (stable & fixed)"
 
 APP_DIR="/opt/zmanim"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 SERVICE_NAME="zmanim"
-USER_NAME="$(whoami)"
+USER_NAME="mjd"
 
 echo "📦 Updating system..."
 sudo apt update -y
 sudo apt install -y python3 python3-venv python3-pip curl
 
-echo "📁 Preparing application directory..."
+echo "🧹 Cleaning previous install (if exists)..."
+sudo rm -rf "$APP_DIR"
 
-# maak folder
+echo "📁 Creating fresh app directory..."
 sudo mkdir -p "$APP_DIR"
-
-# geef ownership aan huidige user (BELANGRIJK FIX)
-sudo chown -R "$USER_NAME":"$USER_NAME" "$APP_DIR"
+sudo chown -R "$USER_NAME:$USER_NAME" "$APP_DIR"
 
 cd "$APP_DIR"
 
@@ -30,10 +29,16 @@ curl -fsSL "$REPO/update.sh" -o update.sh
 
 chmod +x update.sh
 
+echo "🔐 Checking directory permissions..."
+ls -ld "$APP_DIR"
+
 echo "🐍 Creating Python virtual environment..."
 python3 -m venv zmanim-env
 
+echo "⬆️ Upgrading pip..."
 ./zmanim-env/bin/pip install --upgrade pip
+
+echo "📦 Installing Python dependencies..."
 ./zmanim-env/bin/pip install flask zmanim convertdate
 
 echo "⚙️ Creating systemd service..."
@@ -54,21 +59,23 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-echo "🔄 Starting service..."
+echo "🔄 Reloading systemd..."
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 sudo systemctl restart $SERVICE_NAME
 
-echo "🧪 Testing API..."
+echo "⏳ Waiting for service to start..."
 sleep 3
 
+echo "🧪 Testing API..."
 if curl -fsS "http://localhost:5000/zmanim?date=$(date +%F)" >/dev/null; then
-    echo "✅ Installation successful - API working"
+    echo "✅ SUCCESS - API is working"
 else
-    echo "❌ API test failed - check logs"
+    echo "❌ FAILED - check logs"
     echo "👉 journalctl -u $SERVICE_NAME -e"
     exit 1
 fi
 
-echo "🎉 Done!"
+echo ""
+echo "🎉 INSTALL COMPLETE"
 echo "👉 API: http://localhost:5000/zmanim"

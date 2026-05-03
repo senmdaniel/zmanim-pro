@@ -1,14 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO installer v5 (production ready)"
+echo "🚀 Zmanim PRO installer v6 (FIXED DEPLOY)"
 
 APP_DIR="/opt/zmanim"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 SERVICE_NAME="zmanim"
 USER_NAME="mjd"
 
-# ---------- helpers ----------
 log() { echo -e "👉 $1"; }
 
 download() {
@@ -17,61 +16,60 @@ download() {
 
   log "Downloading $file"
 
-  for i in 1 2 3; do
-    if curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$file"; then
-      return 0
-    fi
-    echo "⚠️ retry $i failed for $file"
-    sleep 2
-  done
-
-  echo "❌ Failed to download $file"
-  exit 1
+  if ! curl -fsSL "$url" -o "$file"; then
+    echo "❌ Failed: $file"
+    exit 1
+  fi
 }
 
-# ---------- system ----------
-log "Updating system..."
+# ---------------- SYSTEM ----------------
+log "Installing system packages..."
 sudo apt update -y
 sudo apt install -y python3 python3-venv python3-pip curl
 
-# ---------- clean install ----------
-log "Cleaning old install..."
+# ---------------- STOP SERVICE ----------------
+log "Stopping old service..."
 sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
 sudo systemctl disable $SERVICE_NAME 2>/dev/null || true
 
+# ---------------- CLEAN INSTALL ----------------
+log "Cleaning /opt..."
 sudo rm -rf "$APP_DIR"
 sudo rm -f /etc/systemd/system/${SERVICE_NAME}.service
 sudo systemctl daemon-reload
 
-# ---------- create app dir ----------
+# ---------------- CREATE APP ----------------
 log "Creating app directory..."
 sudo mkdir -p "$APP_DIR"
 sudo chown -R "$USER_NAME:$USER_NAME" "$APP_DIR"
-
 cd "$APP_DIR"
 
-# ---------- download ----------
-log "Downloading project files..."
+# ---------------- DOWNLOAD FILES ----------------
+log "Downloading latest GitHub files..."
 
 download "$REPO/server.py" server.py
 download "$REPO/config.json" config.json
 download "$REPO/version.txt" version.txt
 download "$REPO/update.sh" update.sh
 download "$REPO/requirements.txt" requirements.txt
+download "$REPO/yom_tov.py" yom_tov.py
 
 chmod +x update.sh
 
-# ---------- python ----------
-log "Creating Python environment..."
+# ---------------- PYTHON ENV ----------------
+log "Creating fresh virtualenv..."
 python3 -m venv zmanim-env
 
 log "Upgrading pip..."
-./zmanim-env/bin/pip install --upgrade pip
+./zmanim-env/bin/pip install --upgrade pip setuptools wheel
 
-log "Installing dependencies..."
-./zmanim-env/bin/pip install -r requirements.txt
+log "Installing dependencies (FORCED)..."
+./zmanim-env/bin/pip install --no-cache-dir -r requirements.txt
 
-# ---------- systemd ----------
+# 🔥 HARD FIX: ensure missing packages never break server
+./zmanim-env/bin/pip install convertdate flask
+
+# ---------------- SYSTEMD ----------------
 log "Creating systemd service..."
 
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
@@ -84,32 +82,33 @@ User=$USER_NAME
 WorkingDirectory=$APP_DIR
 ExecStart=$APP_DIR/zmanim-env/bin/python $APP_DIR/server.py
 Restart=always
-RestartSec=5
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# ---------- start service ----------
+# ---------------- START ----------------
 log "Starting service..."
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 sudo systemctl restart $SERVICE_NAME
 
-# ---------- health check ----------
-log "Testing API..."
-sleep 4
+sleep 3
 
-URL="http://localhost:5000/zmanim?date=$(date +%F)"
+# ---------------- HEALTH CHECK ----------------
+log "Health check..."
+
+URL="http://127.0.0.1:5000/zmanim?date=$(date +%F)"
 
 if curl -fsS "$URL" >/dev/null; then
-  echo "✅ INSTALL SUCCESS - API WORKING"
+  echo "✅ INSTALL OK - API WORKING"
 else
-  echo "❌ INSTALL FAILED - API NOT RESPONDING"
-  echo "👉 run: journalctl -u $SERVICE_NAME -e"
+  echo "❌ INSTALL FAILED"
+  echo "👉 journalctl -u $SERVICE_NAME -e"
   exit 1
 fi
 
 echo ""
 echo "🎉 DONE"
-echo "👉 API: http://localhost:5000/zmanim"
+echo "👉 API: http://192.168.178.114:5000/zmanim"

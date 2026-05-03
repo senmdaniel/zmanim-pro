@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO installer v4 (bulletproof)"
+echo "🚀 Zmanim PRO installer v5 (production ready)"
 
 APP_DIR="/opt/zmanim"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
@@ -36,8 +36,14 @@ sudo apt install -y python3 python3-venv python3-pip curl
 
 # ---------- clean install ----------
 log "Cleaning old install..."
-sudo rm -rf "$APP_DIR"
+sudo systemctl stop $SERVICE_NAME 2>/dev/null || true
+sudo systemctl disable $SERVICE_NAME 2>/dev/null || true
 
+sudo rm -rf "$APP_DIR"
+sudo rm -f /etc/systemd/system/${SERVICE_NAME}.service
+sudo systemctl daemon-reload
+
+# ---------- create app dir ----------
 log "Creating app directory..."
 sudo mkdir -p "$APP_DIR"
 sudo chown -R "$USER_NAME:$USER_NAME" "$APP_DIR"
@@ -51,6 +57,7 @@ download "$REPO/server.py" server.py
 download "$REPO/config.json" config.json
 download "$REPO/version.txt" version.txt
 download "$REPO/update.sh" update.sh
+download "$REPO/requirements.txt" requirements.txt
 
 chmod +x update.sh
 
@@ -62,7 +69,7 @@ log "Upgrading pip..."
 ./zmanim-env/bin/pip install --upgrade pip
 
 log "Installing dependencies..."
-./zmanim-env/bin/pip install flask zmanim convertdate
+./zmanim-env/bin/pip install -r requirements.txt
 
 # ---------- systemd ----------
 log "Creating systemd service..."

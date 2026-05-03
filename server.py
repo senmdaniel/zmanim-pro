@@ -2,12 +2,10 @@ from flask import Flask, request, jsonify
 from zmanim.util.geo_location import GeoLocation
 from zmanim.zmanim_calendar import ZmanimCalendar
 from convertdate import hebrew
-
 import datetime
 import json
 import os
 
-# 👉 jouw eigen module
 from yom_tov import get_yom_tov_day, is_yom_tov
 
 app = Flask(__name__)
@@ -16,7 +14,7 @@ app = Flask(__name__)
 # CONFIG
 # ---------------------------
 
-CONFIG_PATH = "/home/mjd/zmanim-pro/config.json"
+CONFIG_PATH = "/opt/zmanim/config.json"
 
 def load_config():
     if os.path.exists(CONFIG_PATH):
@@ -50,6 +48,7 @@ def parse_date(date_str):
     except:
         return None
 
+
 # ---------------------------
 # API
 # ---------------------------
@@ -73,9 +72,7 @@ def zmanim():
         zc = ZmanimCalendar(geo_location=location)
         zc.date = date
 
-        # ---------------------------
-        # zmanim
-        # ---------------------------
+        # Zmanim
         alos = zc.alos()
         netz = zc.sunrise()
         shkia = zc.sunset()
@@ -90,35 +87,31 @@ def zmanim():
         sof_shma_ma = zc.sof_zman_shma_mga()
         sof_tfila_ma = zc.sof_zman_tfila_mga()
 
-        # ---------------------------
-        # hebrew date
-        # ---------------------------
+        # Hebreeuwse datum
         try:
             h = hebrew.from_gregorian(date.year, date.month, date.day)
             hebrew_date = f"{int(h[2]):02}-{int(h[1]):02}-{int(h[0])}"
         except:
             hebrew_date = None
 
-        # ---------------------------
-        # YOM TOV LOGICA
-        # ---------------------------
+        # YOM TOV LOGIC
         yom_tov_day = get_yom_tov_day(date)
-        yom_tov_flag = is_yom_tov(date)
+        is_yom_tov_flag = yom_tov_day is not None
 
-        # ---------------------------
-        # RESPONSE
-        # ---------------------------
+        erev_yom_tov_flag = get_yom_tov_day(date + datetime.timedelta(days=1)) is not None
+
         return jsonify({
             "date": date.strftime("%Y-%m-%d"),
             "city": city,
 
+            "hebrew": hebrew_date,
+
+            # zmanim
             "alos": fmt(alos),
             "netz": fmt(netz),
             "chatzot": fmt(chatzot),
             "mincha_gedola": fmt(mincha_gedola),
-
             "plag": fmt(plag),
-
             "shkia": fmt(shkia),
             "tzeit": fmt(tzeit),
 
@@ -127,12 +120,10 @@ def zmanim():
             "sof_zman_shma_ma": fmt(sof_shma_ma),
             "sof_zman_tfila_ma": fmt(sof_tfila_ma),
 
-            "hebrew": hebrew_date,
-
-            # 🔥 YOM TOV ENGINE
-            "is_yom_tov": yom_tov_flag,
+            # 🔥 YOM TOV (LOXONE READY)
+            "is_yom_tov": is_yom_tov_flag,
             "yom_tov_day": yom_tov_day,
-            "event": yom_tov_day if yom_tov_day else "regular"
+            "is_erev_yom_tov": erev_yom_tov_flag
         })
 
     except Exception as e:

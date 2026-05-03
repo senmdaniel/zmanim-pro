@@ -1,3 +1,4 @@
+from calendar.jewish_calendar import get_calendar_info
 from flask import Flask, request, jsonify
 from zmanim.util.geo_location import GeoLocation
 from zmanim.zmanim_calendar import ZmanimCalendar

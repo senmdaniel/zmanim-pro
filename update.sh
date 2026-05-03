@@ -30,14 +30,14 @@ echo "💾 Backup created at $BACKUP"
 
 cd $APP_DIR
 
-# 🔥 FORCE CLEAN DEPENDENCIES
+# 🔥 CLEAN REBUILD (BELANGRIJK)
 rm -rf zmanim-env
 python3 -m venv zmanim-env
 
 ./zmanim-env/bin/pip install --upgrade pip
 ./zmanim-env/bin/pip install -r requirements.txt
 
-# 🔥 refresh code from GitHub
+# 🔄 FETCH LATEST CODE
 curl -fsSL $REPO/server.py -o server.py
 curl -fsSL $REPO/yom_tov.py -o yom_tov.py
 curl -fsSL $REPO/requirements.txt -o requirements.txt

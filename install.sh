@@ -1,38 +1,31 @@
 #!/bin/bash
 
-echo "🚀 Installing Zmanim PRO..."
+echo "🚀 Zmanim PRO installer v1..."
 
-# update systeem
+REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
+
 sudo apt update -y
+sudo apt install -y python3 python3-venv python3-pip curl
 
-# python + venv
-sudo apt install -y python3 python3-venv python3-pip
-
-# map maken
 mkdir -p /home/mjd/zmanim-pro
 cd /home/mjd/zmanim-pro
 
-# virtual env
+# download files
+curl -O $REPO/server.py
+curl -O $REPO/config.json
+curl -O $REPO/version.txt
+curl -O $REPO/update.sh
+
+# python env
 python3 -m venv zmanim-env
 source zmanim-env/bin/activate
 
-# libraries
 pip install flask zmanim convertdate
-
-# server downloaden (later vervangen door jouw github)
-cp server.py /home/mjd/zmanim-pro/server.py
-
-# config
-cat > /home/mjd/zmanim-pro/config.json <<EOF
-{
-  "city": "antwerp"
-}
-EOF
 
 # systemd service
 sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
 [Unit]
-Description=Zmanim Flask Server
+Description=Zmanim PRO
 After=network.target
 
 [Service]
@@ -46,10 +39,8 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-# reload + start
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim
 sudo systemctl restart zmanim
 
-echo "✅ Installation complete!"
-"   mjd@mjd:~/zmanim-pro $
+echo "✅ Zmanim PRO installed!"

@@ -1,5 +1,4 @@
 flask
-zmanim
 hdate
 convertdate
 PyMeeus

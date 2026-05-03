@@ -1,20 +1,33 @@
 #!/bin/bash
 
-set -euo pipefail
+echo "🚀 Zmanim PRO bootstrap installer"
+
+MODE="${1:-normal}"
 
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 
-echo "🚀 Zmanim PRO bootstrap installer"
-
 echo "⬇️ Downloading installer..."
+curl -fsSL "$REPO/install.sh" -o /tmp/install.sh
 
-curl -fsSL "$REPO/install.sh" -o install.sh
+chmod +x /tmp/install.sh
 
-if [ ! -f install.sh ]; then
-  echo "❌ Download failed"
-  exit 1
+if [ "$MODE" = "clean" ]; then
+  echo "🧹 CLEAN MODE ACTIVE"
+
+  sudo systemctl stop zmanim 2>/dev/null || true
+  sudo systemctl disable zmanim 2>/dev/null || true
+
+  sudo rm -f /etc/systemd/system/zmanim.service
+  sudo systemctl daemon-reload
+
+  sudo rm -rf /opt/zmanim
+  sudo rm -rf /home/mjd/zmanim-pro
+
+  sudo pkill -f server.py || true
+  sudo pkill -f zmanim || true
+
+  echo "✅ Cleanup done"
 fi
 
 echo "🔐 Running installer..."
-
-bash install.sh
+bash /tmp/install.sh

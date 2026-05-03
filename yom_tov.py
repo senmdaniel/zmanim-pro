@@ -11,7 +11,7 @@ def get_yom_tov_day(date):
             return "pesach_1"
         if day == 16:
             return "pesach_2"
-        if day in [17, 18, 19, 20]:
+        if 17 <= day <= 20:
             return "chol_hamoed_pesach"
         if day == 21:
             return "shevi_i_shel_pesach"
@@ -37,7 +37,7 @@ def get_yom_tov_day(date):
             return "sukkot_1"
         if day == 16:
             return "sukkot_2"
-        if day in [17, 18, 19, 20]:
+        if 17 <= day <= 20:
             return "chol_hamoed_sukkot"
         if day == 21:
             return "hoshana_rabba"

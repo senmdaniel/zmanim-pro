@@ -17,28 +17,35 @@ if [ "$LOCAL" = "$REMOTE" ]; then
     exit 0
 fi
 
-echo "⬆️ Update available - downloading safely..."
+echo "⬆️ Update available"
 
-TMP_DIR="/tmp/zmanim_update"
-rm -rf "$TMP_DIR"
-mkdir -p "$TMP_DIR"
+# 🧯 BACKUP (IMPORTANT)
+BACKUP_DIR="/opt/zmanim_backup/$LOCAL"
+mkdir -p "$BACKUP_DIR"
 
-# download to temp first (IMPORTANT FIX)
-curl -fsSL "$REPO/server.py" -o "$TMP_DIR/server.py"
-curl -fsSL "$REPO/config.json" -o "$TMP_DIR/config.json"
-curl -fsSL "$REPO/version.txt" -o "$TMP_DIR/version.txt"
+cp -r "$APP_DIR"/* "$BACKUP_DIR/"
 
-# validate downloads
-if [ ! -s "$TMP_DIR/server.py" ]; then
-    echo "❌ Download failed - aborting update"
+echo "💾 Backup created at $BACKUP_DIR"
+
+# 📦 TEMP DOWNLOAD
+TMP="/tmp/zmanim_update"
+rm -rf "$TMP"
+mkdir -p "$TMP"
+
+curl -fsSL "$REPO/server.py" -o "$TMP/server.py"
+curl -fsSL "$REPO/config.json" -o "$TMP/config.json"
+curl -fsSL "$REPO/version.txt" -o "$TMP/version.txt"
+
+# 🧪 VALIDATE
+if [ ! -s "$TMP/server.py" ]; then
+    echo "❌ Download failed"
     exit 1
 fi
 
-echo "📦 Applying update..."
-
-cp "$TMP_DIR/server.py" "$APP_DIR/server.py"
-cp "$TMP_DIR/config.json" "$APP_DIR/config.json"
-cp "$TMP_DIR/version.txt" "$APP_DIR/version.txt"
+# 🚀 APPLY UPDATE
+cp "$TMP/server.py" "$APP_DIR/server.py"
+cp "$TMP/config.json" "$APP_DIR/config.json"
+cp "$TMP/version.txt" "$APP_DIR/version.txt"
 
 echo "🔄 Restarting service..."
 sudo systemctl restart zmanim
@@ -46,8 +53,13 @@ sudo systemctl restart zmanim
 sleep 2
 
 if systemctl is-active --quiet zmanim; then
-    echo "✅ Update successful to $REMOTE"
+    echo "✅ Updated to $REMOTE"
 else
-    echo "❌ Service failed after update - rolling back not implemented yet"
-    exit 1
+    echo "❌ Update failed → rolling back"
+
+    cp -r "$BACKUP_DIR"/* "$APP_DIR/"
+
+    sudo systemctl restart zmanim
+
+    echo "🔁 Rollback completed"
 fi

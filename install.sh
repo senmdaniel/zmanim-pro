@@ -1,47 +1,71 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "🚀 Zmanim PRO installer v3 (stable & fixed)"
+echo "🚀 Zmanim PRO installer v4 (bulletproof)"
 
 APP_DIR="/opt/zmanim"
 REPO="https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main"
 SERVICE_NAME="zmanim"
 USER_NAME="mjd"
 
-echo "📦 Updating system..."
+# ---------- helpers ----------
+log() { echo -e "👉 $1"; }
+
+download() {
+  local url=$1
+  local file=$2
+
+  log "Downloading $file"
+
+  for i in 1 2 3; do
+    if curl -fsSL --retry 3 --retry-delay 2 "$url" -o "$file"; then
+      return 0
+    fi
+    echo "⚠️ retry $i failed for $file"
+    sleep 2
+  done
+
+  echo "❌ Failed to download $file"
+  exit 1
+}
+
+# ---------- system ----------
+log "Updating system..."
 sudo apt update -y
 sudo apt install -y python3 python3-venv python3-pip curl
 
-echo "🧹 Cleaning previous install (if exists)..."
+# ---------- clean install ----------
+log "Cleaning old install..."
 sudo rm -rf "$APP_DIR"
 
-echo "📁 Creating fresh app directory..."
+log "Creating app directory..."
 sudo mkdir -p "$APP_DIR"
 sudo chown -R "$USER_NAME:$USER_NAME" "$APP_DIR"
 
 cd "$APP_DIR"
 
-echo "⬇️ Downloading project files..."
-curl -fsSL "$REPO/server.py" -o server.py
-curl -fsSL "$REPO/config.json" -o config.json
-curl -fsSL "$REPO/version.txt" -o version.txt
-curl -fsSL "$REPO/update.sh" -o update.sh
+# ---------- download ----------
+log "Downloading project files..."
+
+download "$REPO/server.py" server.py
+download "$REPO/config.json" config.json
+download "$REPO/version.txt" version.txt
+download "$REPO/update.sh" update.sh
 
 chmod +x update.sh
 
-echo "🔐 Checking directory permissions..."
-ls -ld "$APP_DIR"
-
-echo "🐍 Creating Python virtual environment..."
+# ---------- python ----------
+log "Creating Python environment..."
 python3 -m venv zmanim-env
 
-echo "⬆️ Upgrading pip..."
+log "Upgrading pip..."
 ./zmanim-env/bin/pip install --upgrade pip
 
-echo "📦 Installing Python dependencies..."
+log "Installing dependencies..."
 ./zmanim-env/bin/pip install flask zmanim convertdate
 
-echo "⚙️ Creating systemd service..."
+# ---------- systemd ----------
+log "Creating systemd service..."
 
 sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null <<EOF
 [Unit]
@@ -59,23 +83,26 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-echo "🔄 Reloading systemd..."
+# ---------- start service ----------
+log "Starting service..."
 sudo systemctl daemon-reload
 sudo systemctl enable $SERVICE_NAME
 sudo systemctl restart $SERVICE_NAME
 
-echo "⏳ Waiting for service to start..."
-sleep 3
+# ---------- health check ----------
+log "Testing API..."
+sleep 4
 
-echo "🧪 Testing API..."
-if curl -fsS "http://localhost:5000/zmanim?date=$(date +%F)" >/dev/null; then
-    echo "✅ SUCCESS - API is working"
+URL="http://localhost:5000/zmanim?date=$(date +%F)"
+
+if curl -fsS "$URL" >/dev/null; then
+  echo "✅ INSTALL SUCCESS - API WORKING"
 else
-    echo "❌ FAILED - check logs"
-    echo "👉 journalctl -u $SERVICE_NAME -e"
-    exit 1
+  echo "❌ INSTALL FAILED - API NOT RESPONDING"
+  echo "👉 run: journalctl -u $SERVICE_NAME -e"
+  exit 1
 fi
 
 echo ""
-echo "🎉 INSTALL COMPLETE"
+echo "🎉 DONE"
 echo "👉 API: http://localhost:5000/zmanim"

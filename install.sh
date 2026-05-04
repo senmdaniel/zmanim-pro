@@ -4,7 +4,7 @@ set -e
 
 CITY=${1:-antwerp}
 REPO="https://github.com/senmdaniel/zmanim-pro.git"
-DIR="/home/pi/zmanim-pro"
+DIR="$HOME/zmanim-pro"
 
 echo "🚀 Zmanim-Pro Auto Installer"
 echo "🌍 City: $CITY"

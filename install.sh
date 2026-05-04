@@ -2,37 +2,52 @@
 
 set -e
 
-REPO="https://github.com/senmdaniel/loxone-zmanim-pi.git"
-DIR="/home/pi/loxone-zmanim-pi"
-
-echo "📦 System update..."
+echo "📦 Updating system..."
 sudo apt update && sudo apt upgrade -y
 
-echo "🐍 Installing dependencies..."
-sudo apt install -y python3 python3-pip git
+echo "🐍 Installing system packages..."
+sudo apt install -y python3 python3-pip python3-venv git
 
-echo "📁 Cloning repo..."
-if [ -d "$DIR" ]; then
-  echo "Repo bestaat al → update"
-  cd $DIR
+PROJECT="/home/mjd/zmanim-pro"
+
+echo "📁 Cloning/updating project..."
+if [ -d "$PROJECT" ]; then
+  cd $PROJECT
   git pull
 else
-  git clone $REPO $DIR
+  git clone https://github.com/senmdaniel/zmanim-pro.git $PROJECT
+  cd $PROJECT
 fi
 
-cd $DIR
+echo "🐍 Creating virtual environment..."
+python3 -m venv venv
+source venv/bin/activate
 
-echo "📦 Installing Python packages..."
-pip3 install -r requirements.txt
+echo "📦 Installing Python dependencies..."
+pip install --upgrade pip
+pip install flask astral
 
-echo "⚙️ Installing systemd service..."
-sudo cp systemd/zmanim.service /etc/systemd/system/zmanim.service
+echo "⚙️ Creating systemd service..."
 
-echo "🔄 Reload systemd..."
+sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
+[Unit]
+Description=Zmanim API
+After=network.target
+
+[Service]
+WorkingDirectory=/home/mjd/zmanim-pro
+ExecStart=/home/mjd/zmanim-pro/venv/bin/python app.py
+Restart=always
+User=mjd
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "🔄 Enabling service..."
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim
 sudo systemctl restart zmanim
 
-echo "✅ Installatie voltooid!"
-echo "🌐 API beschikbaar op:"
-echo "http://$(hostname -I | awk '{print $1}'):5000/zmanim"
+echo "✅ INSTALL COMPLETE"
+echo "🌐 http://$(hostname -I | awk '{print $1}'):5000/zmanim"

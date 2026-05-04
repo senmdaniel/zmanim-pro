@@ -1,19 +1,22 @@
 import json
 from datetime import datetime
 
-def load_calendar(path):
-    with open(path, "r") as f:
-        return json.load(f)
-
 def get_active_event(path):
-    data = load_calendar(path)
-    now = datetime.now()
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
 
-    for event in data["holidays"]:
-        start = datetime.fromisoformat(event["start"])
-        end = datetime.fromisoformat(event["end"])
+        now = datetime.now()
 
-        if start <= now <= end:
-            return event["name"]
+        for event in data["holidays"]:
+            start = datetime.fromisoformat(event["start"])
+            end = datetime.fromisoformat(event["end"])
 
-    return None
+            if start <= now <= end:
+                return event["name"]
+
+        return None
+
+    except Exception as e:
+        print("Zmanim error:", e)
+        return None

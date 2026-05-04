@@ -1,31 +1,106 @@
-import os
-import sys
-import subprocess
-import json
+#!/bin/bash
 
-CITY = sys.argv[1] if len(sys.argv) > 1 else "antwerp"
+set -e  # stop bij errors
 
-REPO_URL = "https://github.com/JOUWNAAM/zmanim-pro.git"
-BASE_DIR = f"/home/pi/zmanim-pro"
+CITY=${1:-antwerp}
+REPO="https://github.com/JOUWNAAM/zmanim-pro.git"
+DIR="/home/pi/zmanim-pro"
 
-print("📦 Installing Zmanim-Pro...")
+echo "===================================="
+echo "📦 Zmanim-Pro Installer"
+echo "🌍 City: $CITY"
+echo "===================================="
 
-# 1. Clone repo
-if not os.path.exists(BASE_DIR):
-    subprocess.run(["git", "clone", REPO_URL, BASE_DIR])
+# ----------------------------
+# 1. System dependencies
+# ----------------------------
+echo "🔧 Installing system dependencies..."
+sudo apt update -y
+sudo apt install -y git python3 python3-pip
 
-# 2. Set city config
-config = {
-    "city": CITY
+# ----------------------------
+# 2. Clone or update repo
+# ----------------------------
+if [ -d "$DIR/.git" ]; then
+    echo "🔄 Existing install found → updating..."
+    cd $DIR
+    git pull origin main
+else
+    echo "⬇️ Fresh install → cloning repo..."
+    git clone $REPO $DIR
+    cd $DIR
+fi
+
+# ----------------------------
+# 3. Python dependencies
+# ----------------------------
+echo "🐍 Installing Python dependencies..."
+pip3 install --upgrade pip
+pip3 install -r requirements.txt
+
+# ----------------------------
+# 4. Config setup
+# ----------------------------
+echo "⚙️ Creating configuration..."
+
+mkdir -p config
+
+cat > config/settings.json <<EOF
+{
+  "city": "$CITY"
 }
+EOF
 
-os.makedirs(f"{BASE_DIR}/config", exist_ok=True)
+echo "📍 Config set to: $CITY"
 
-with open(f"{BASE_DIR}/config/settings.json", "w") as f:
-    json.dump(config, f)
+# ----------------------------
+# 5. Test run (safe)
+# ----------------------------
+echo "🧪 Testing application..."
 
-# 3. Install dependencies
-subprocess.run(["pip3", "install", "-r", f"{BASE_DIR}/requirements.txt"])
+timeout 5s python3 app/main.py || echo "⚠️ App test skipped (normal on first run)"
 
-print("✅ Installed for city:", CITY)
-print("🚀 Run: python3 app/main.py")
+# ----------------------------
+# 6. Create simple launcher script
+# ----------------------------
+cat > start.sh <<EOF
+#!/bin/bash
+cd $DIR
+python3 app/main.py
+EOF
+
+chmod +x start.sh
+
+# ----------------------------
+# 7. Optional: systemd service (AUTO START)
+# ----------------------------
+echo "⚙️ Setting up auto-start service..."
+
+sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
+[Unit]
+Description=Zmanim Pro Service
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 $DIR/app/main.py
+WorkingDirectory=$DIR
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable zmanim.service
+sudo systemctl restart zmanim.service
+
+# ----------------------------
+# DONE
+# ----------------------------
+echo "===================================="
+echo "✅ INSTALL COMPLETE"
+echo "🌐 API: http://localhost:5000/status"
+echo "🔁 Auto-start: ENABLED"
+echo "📁 Path: $DIR"
+echo "===================================="

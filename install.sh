@@ -2,33 +2,37 @@
 
 set -e
 
-echo "📦 Updating system..."
+REPO="https://github.com/senmdaniel/loxone-zmanim-pi.git"
+DIR="/home/pi/loxone-zmanim-pi"
+
+echo "📦 System update..."
 sudo apt update && sudo apt upgrade -y
 
-echo "🐍 Installing Python + pip..."
+echo "🐍 Installing dependencies..."
 sudo apt install -y python3 python3-pip git
 
 echo "📁 Cloning repo..."
-cd /home/pi
-if [ -d "loxone-zmanim-pi" ]; then
-  echo "Repo bestaat al, updaten..."
-  cd loxone-zmanim-pi
+if [ -d "$DIR" ]; then
+  echo "Repo bestaat al → update"
+  cd $DIR
   git pull
 else
-  git clone https://github.com/JOUWNAAM/loxone-zmanim-pi.git
-  cd loxone-zmanim-pi
+  git clone $REPO $DIR
 fi
 
-echo "📦 Installing Python dependencies..."
+cd $DIR
+
+echo "📦 Installing Python packages..."
 pip3 install -r requirements.txt
 
 echo "⚙️ Installing systemd service..."
 sudo cp systemd/zmanim.service /etc/systemd/system/zmanim.service
 
-echo "🔄 Reloading systemd..."
+echo "🔄 Reload systemd..."
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim
 sudo systemctl restart zmanim
 
-echo "✅ Installation complete!"
-echo "🌐 API running at: http://<pi-ip>:5000/zmanim"
+echo "✅ Installatie voltooid!"
+echo "🌐 API beschikbaar op:"
+echo "http://$(hostname -I | awk '{print $1}'):5000/zmanim"

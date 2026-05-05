@@ -13,7 +13,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') 🔄 Update check gestart" >> "$LOG_FILE"
 cd "$APP_DIR" || exit 1
 
 # -------------------------
-# 1. prevent double runs
+# 1. prevent double execution
 # -------------------------
 if [ -f "$LOCK_FILE" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') ⚠️ Update al bezig - skip" >> "$LOG_FILE"
@@ -24,7 +24,7 @@ touch "$LOCK_FILE"
 trap "rm -f $LOCK_FILE" EXIT
 
 # -------------------------
-# 2. fetch updates
+# 2. fetch latest code
 # -------------------------
 git fetch origin >> "$LOG_FILE" 2>&1
 
@@ -44,17 +44,17 @@ fi
 # -------------------------
 echo "$(date '+%Y-%m-%d %H:%M:%S') ⬇️ Update gevonden: $LOCAL → $REMOTE" >> "$LOG_FILE"
 
-# backup version
+# backup current version
 echo "$LOCAL" > "$APP_DIR/.last_version"
 
-# hard reset repo
+# hard reset to GitHub state
 git reset --hard origin/main >> "$LOG_FILE" 2>&1
 
-# version file (commit hash)
+# store version (commit hash)
 echo "$REMOTE" > "$VERSION_FILE"
 
 # -------------------------
-# 5. python environment
+# 5. python environment update
 # -------------------------
 source "$APP_DIR/venv/bin/activate"
 
@@ -62,7 +62,7 @@ pip install --upgrade pip >> "$LOG_FILE" 2>&1
 pip install -r requirements.txt >> "$LOG_FILE" 2>&1
 
 # -------------------------
-# 6. restart service (NO SUDO FIX)
+# 6. restart service (NO SUDO)
 # -------------------------
 systemctl restart zmanim.service >> "$LOG_FILE" 2>&1
 

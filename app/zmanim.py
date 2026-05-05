@@ -1,7 +1,3 @@
-from datetime import datetime
-from pyluach import dates
-
-
 from datetime import timedelta
 from astral import LocationInfo
 from astral.sun import sun
@@ -9,12 +5,18 @@ import pytz
 import json
 import os
 
+from pyluach import dates
 
+
+# ----------------------------
+# ZMANIM (REAL SUN BASED)
+# ----------------------------
 def calculate_zmanim(city, d):
     """
-    Echte zon-gebaseerde zmanim (offline)
+    Echte offline zmanim gebaseerd op zonpositie (Astral)
     """
 
+    # config laden
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     path = os.path.join(BASE_DIR, "config", "settings.json")
 
@@ -33,41 +35,34 @@ def calculate_zmanim(city, d):
         longitude=lon
     )
 
+    # zondata
     s = sun(location.observer, date=d, tzinfo=tz)
 
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
-    # daglengte
+    # halachische berekeningen
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
 
     chatzos = sunrise + (day_length / 2)
     plag_hamincha = sunset - (1.25 * shaah_zmanit)
 
-    # simpele maar bruikbare halachische benadering
     alos = sunrise - timedelta(minutes=72)
     tzeis = sunset + timedelta(minutes=40)
 
     return {
-        "alos": sunrise.strftime("%H:%M") if False else alos.strftime("%H:%M"),
+        "alos": alos.strftime("%H:%M"),
         "chatzos": chatzos.strftime("%H:%M"),
         "plag_hamincha": plag_hamincha.strftime("%H:%M"),
         "shkia": sunset.strftime("%H:%M"),
         "tzeis": tzeis.strftime("%H:%M")
-    }:
-    """
-    Dummy tijden (later vervangbaar door echte berekening)
-    """
-    return {
-        "alos": "05:12",
-        "chatzos": "12:44",
-        "plag_hamincha": "18:10",
-        "shkia": "20:58",
-        "tzeis": "21:35"
     }
 
 
+# ----------------------------
+# HOLIDAY LOGIC
+# ----------------------------
 def get_holiday_info(city, d):
     month_day = (d.month, d.day)
 
@@ -89,6 +84,9 @@ def get_holiday_info(city, d):
     }
 
 
+# ----------------------------
+# HEBREW DATE (PYLUACH)
+# ----------------------------
 def get_hebrew_date(d):
     g = dates.GregorianDate(d.year, d.month, d.day)
     h = g.to_heb()

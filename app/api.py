@@ -1,8 +1,7 @@
 from flask import Flask, jsonify, request
 import json
 import os
-from datetime import datetime
-from app.zmanim import is_yom_tov, calculate_times
+from app.zmanim import get_active_event
 
 app = Flask(__name__)
 
@@ -17,26 +16,32 @@ def get_city():
 
 @app.route("/status")
 def status():
-    date_str = request.args.get("datum")
-
-    if not date_str:
-        return jsonify({"error": "missing datum (YYYY/MM/DD)"}), 400
-
-    # normalize format
-    date_str = date_str.replace("/", "-")
-    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
-
     city = get_city()
+    date = request.args.get("datum")
 
-    data_path = os.path.join(BASE_DIR, "data", f"{city}.json")
+    if not date:
+        from datetime import datetime
+        date = datetime.now().strftime("%Y-%m-%d")
 
-    yom_tov = is_yom_tov(data_path, date_obj)
-    times = calculate_times(date_obj)
+    path = os.path.join(BASE_DIR, "data", f"{city}.json")
+    event = get_active_event(path)
 
     return jsonify({
-        "date": str(date_obj),
         "city": city,
-        "is_yom_tov": yom_tov,
-        "plag_hamincha": times["plag_hamincha"],
-        "tzeis": times["tzeis"]
+        "date": date,
+        "holiday": event.get("holiday") if event else None,
+        "type": event.get("type") if event else None,
+        "is_yom_tov": event.get("type") == "yom_tov" if event else False,
+        "plag_hamincha": event.get("plag_hamincha") if event else None,
+        "tzeis": event.get("tzeis") if event else None
     })
+
+
+@app.route("/zmanim")
+def zmanim():
+    return status()
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})

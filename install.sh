@@ -29,21 +29,20 @@ else
 fi
 
 # -------------------------
-# 3. python deps
+# 3. python deps (safe install)
 # -------------------------
-pip3 install -r requirements.txt
+python3 -m pip install --upgrade pip
+pip3 install --break-system-packages -r requirements.txt
 
 # -------------------------
-# 4. safe config init (BELANGRIJK)
+# 4. config init (SAFE)
 # -------------------------
 mkdir -p config
 
-if [ ! -f config/settings.json ]; then
-    echo "{\"city\": \"$CITY\"}" > config/settings.json
-fi
+echo "{\"city\": \"$CITY\"}" > config/settings.json
 
 # -------------------------
-# 5. systemd service
+# 5. systemd service (FIXED)
 # -------------------------
 sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
 [Unit]
@@ -54,18 +53,19 @@ After=network.target
 WorkingDirectory=$APP_DIR
 ExecStart=/usr/bin/python3 app/main.py
 Restart=always
-User=$USER
+RestartSec=3
+User=$(whoami)
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+# -------------------------
+# 6. enable service
+# -------------------------
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim.service
 sudo systemctl restart zmanim.service
 
-# -------------------------
-# DONE
-# -------------------------
 echo "✅ INSTALL COMPLETE"
-echo "🌐 http://localhost:5000/status"
+echo "🌐 http://$(hostname -I | awk '{print $1}'):5000/status"

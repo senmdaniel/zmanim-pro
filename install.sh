@@ -10,13 +10,13 @@ echo "🚀 Zmanim-Pro PRO Installer"
 echo "🌍 City: $CITY"
 
 # -------------------------
-# 1. system dependencies
+# 1. system deps
 # -------------------------
 sudo apt update -y
 sudo apt install -y git python3 python3-venv python3-pip
 
 # -------------------------
-# 2. clone repo
+# 2. clone/update
 # -------------------------
 if [ -d "$APP_DIR/.git" ]; then
     echo "🔄 Updating repo..."
@@ -29,28 +29,25 @@ else
 fi
 
 # -------------------------
-# 3. create venv (IMPORTANT FIX)
+# 3. venv setup
 # -------------------------
-python3 -m venv venv
+cd $APP_DIR
 
-# activate venv
+python3 -m venv venv
 source venv/bin/activate
 
-# upgrade pip
 pip install --upgrade pip
-
-# install dependencies
 pip install -r requirements.txt
 
 # -------------------------
-# 4. config safe init
+# 4. config
 # -------------------------
 mkdir -p config
 
 echo "{\"city\": \"$CITY\"}" > config/settings.json
 
 # -------------------------
-# 5. systemd service (FIXED FOR VENV)
+# 5. systemd (FIXED IMPORT ISSUE)
 # -------------------------
 sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
 [Unit]
@@ -59,7 +56,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/venv/bin/python app/main.py
+ExecStart=$APP_DIR/venv/bin/python -m app.main
 Restart=always
 RestartSec=3
 User=$USER
@@ -69,7 +66,7 @@ WantedBy=multi-user.target
 EOF
 
 # -------------------------
-# 6. enable service
+# 6. start service
 # -------------------------
 sudo systemctl daemon-reload
 sudo systemctl enable zmanim.service

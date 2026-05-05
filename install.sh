@@ -1,95 +1,37 @@
 #!/bin/bash
-
 set -e
 
-CITY=${1:-antwerp}
-REPO="https://github.com/senmdaniel/zmanim-pro.git"
+# ===== CONFIG =====
 APP_DIR="$HOME/zmanim-pro"
+SERVICE_NAME="zmanim"
+GITHUB_REPO="https://github.com/senmdaniel/zmanim-pro.git"
 
-echo "🚀 Zmanim-Pro PRO Installer"
-echo "🌍 City: $CITY"
+echo "🚀 Zmanim-Pro installer starting..."
+echo "📂 App directory: $APP_DIR"
+echo "🌍 Cloning repo from: $GITHUB_REPO"
 
-# -------------------------
-# 1. system dependencies
-# -------------------------
-sudo apt update -y
+# Install dependencies
+sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip
 
-# -------------------------
-# 2. clone or update
-# -------------------------
-if [ -d "$APP_DIR/.git" ]; then
-    echo "🔄 Updating repo..."
-    cd $APP_DIR
-    git fetch origin
-    git reset --hard origin/main
-else
-    echo "⬇️ Cloning repo..."
-    git clone $REPO $APP_DIR
-    cd $APP_DIR
+# Clone repo if not exists
+if [ ! -d "$APP_DIR" ]; then
+    git clone "$GITHUB_REPO" "$APP_DIR"
 fi
 
-# -------------------------
-# 3. python venv setup
-# -------------------------
-cd $APP_DIR
+cd "$APP_DIR"
 
+# Create virtualenv
 python3 -m venv venv
-source venv/bin/activate
 
-pip install --upgrade pip
+# Activate and install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
 
-# -------------------------
-# 4. config
-# -------------------------
-mkdir -p config
-echo "{\"city\": \"$CITY\"}" > config/settings.json
+# ===== SYSTEMD SERVICE =====
+SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
-# -------------------------
-# 5. update script (AUTO UPDATE)
-# -------------------------
-cat > $APP_DIR/update.sh << 'EOF'
-#!/bin/bash
-
-APP_DIR="$HOME/zmanim-pro"
-
-echo "🔄 Checking for updates..."
-
-cd $APP_DIR || exit
-
-git fetch origin
-
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-
-if [ "$LOCAL" != "$REMOTE" ]; then
-    echo "⬇️ Update gevonden"
-
-    git reset --hard origin/main
-
-    source "$APP_DIR/venv/bin/activate"
-    pip install -r requirements.txt
-
-    sudo systemctl restart zmanim.service
-
-    echo "✅ Update toegepast"
-else
-    echo "✔ Geen updates"
-fi
-EOF
-
-chmod +x $APP_DIR/update.sh
-
-# -------------------------
-# 6. cron job (auto updates)
-# -------------------------
-(crontab -l 2>/dev/null | grep -v "zmanim-pro/update.sh"; echo "*/10 * * * * bash $APP_DIR/update.sh >> $APP_DIR/update.log 2>&1") | crontab -
-
-# -------------------------
-# 7. systemd service
-# -------------------------
-sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
+sudo tee "$SERVICE_FILE" > /dev/null <<EOL
 [Unit]
 Description=Zmanim Pro
 After=network.target
@@ -103,20 +45,68 @@ User=$USER
 
 [Install]
 WantedBy=multi-user.target
+EOL
+
+sudo systemctl daemon-reload
+sudo systemctl enable "$SERVICE_NAME.service"
+sudo systemctl start "$SERVICE_NAME.service"
+
+# ===== POLKIT RULE =====
+POLKIT_FILE="/etc/polkit-1/rules.d/10-zmanim.rules"
+
+sudo tee "$POLKIT_FILE" > /dev/null <<EOL
+polkit.addRule(function(action, subject) {
+    if (
+        action.id == "org.freedesktop.systemd1.manage-units" &&
+        subject.user == "$USER"
+    ) {
+        return polkit.Result.YES;
+    }
+});
+EOL
+
+# ===== UPDATE SCRIPT =====
+UPDATE_SCRIPT="$APP_DIR/update.sh"
+
+tee "$UPDATE_SCRIPT" > /dev/null <<'EOF'
+#!/bin/bash
+set -e
+
+APP_DIR="$HOME/zmanim-pro"
+LOG_FILE="$APP_DIR/update.log"
+VERSION_FILE="$APP_DIR/version.txt"
+
+echo "--------------------------------------------------" >> "$LOG_FILE"
+echo "$(date '+%Y-%m-%d %H:%M:%S') 🔄 Update check gestart" >> "$LOG_FILE"
+
+cd "$APP_DIR" || exit 1
+
+git fetch origin >> "$LOG_FILE" 2>&1
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
+
+if [ "$LOCAL" = "$REMOTE" ]; then
+    echo "✔ Geen updates (versie: $LOCAL)" >> "$LOG_FILE"
+    exit 0
+fi
+
+echo "⬇️ Update gevonden: $LOCAL → $REMOTE" >> "$LOG_FILE"
+
+git reset --hard origin/main >> "$LOG_FILE" 2>&1
+echo "$REMOTE" > "$VERSION_FILE"
+
+source "$APP_DIR/venv/bin/activate"
+pip install -r requirements.txt >> "$LOG_FILE" 2>&1
+
+systemctl restart zmanim.service >> "$LOG_FILE" 2>&1
+echo "✅ Update succesvol + service draait (versie: $REMOTE)" >> "$LOG_FILE"
+echo "--------------------------------------------------" >> "$LOG_FILE"
 EOF
 
-# -------------------------
-# 8. start service
-# -------------------------
-sudo systemctl daemon-reload
-sudo systemctl enable zmanim.service
-sudo systemctl restart zmanim.service
+chmod +x "$UPDATE_SCRIPT"
 
-# -------------------------
-# DONE
-# -------------------------
-IP=$(hostname -I | awk '{print $1}')
+# ===== CRON JOB =====
+(crontab -l 2>/dev/null; echo "*/10 * * * * $UPDATE_SCRIPT") | crontab -
 
-echo "✅ INSTALL COMPLETE"
-echo "🌐 http://$IP:5000/status"
-echo "🔄 Auto-updates actief (elke 10 min)"
+echo "✅ Installation complete!"
+echo "🌐 Zmanim status: http://$(hostname -I | awk '{print $1}'):5000/status"

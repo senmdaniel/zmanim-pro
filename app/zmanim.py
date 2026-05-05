@@ -1,6 +1,9 @@
-def get_active_event(path):
-    import json
-    from datetime import datetime
+import json
+import os
+
+def get_event(path, date):
+    if not os.path.exists(path):
+        return None
 
     try:
         with open(path, "r") as f:
@@ -8,6 +11,4 @@ def get_active_event(path):
     except:
         return None
 
-    today = datetime.now().strftime("%Y-%m-%d")
-
-    return data.get(today)
+    return data.get(date)

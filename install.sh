@@ -6,17 +6,17 @@ CITY=${1:-antwerp}
 REPO="https://github.com/senmdaniel/zmanim-pro.git"
 APP_DIR="$HOME/zmanim-pro"
 
-echo "🚀 Zmanim-Pro Bootstrap Installer"
+echo "🚀 Zmanim-Pro PRO Installer"
 echo "🌍 City: $CITY"
 
 # -------------------------
-# 1. dependencies
+# 1. system dependencies
 # -------------------------
 sudo apt update -y
-sudo apt install -y git python3 python3-pip
+sudo apt install -y git python3 python3-venv python3-pip
 
 # -------------------------
-# 2. clone or update
+# 2. clone repo
 # -------------------------
 if [ -d "$APP_DIR/.git" ]; then
     echo "🔄 Updating repo..."
@@ -29,20 +29,28 @@ else
 fi
 
 # -------------------------
-# 3. python deps (safe install)
+# 3. create venv (IMPORTANT FIX)
 # -------------------------
-python3 -m pip install --upgrade pip
-pip3 install --break-system-packages -r requirements.txt
+python3 -m venv venv
+
+# activate venv
+source venv/bin/activate
+
+# upgrade pip
+pip install --upgrade pip
+
+# install dependencies
+pip install -r requirements.txt
 
 # -------------------------
-# 4. config init (SAFE)
+# 4. config safe init
 # -------------------------
 mkdir -p config
 
 echo "{\"city\": \"$CITY\"}" > config/settings.json
 
 # -------------------------
-# 5. systemd service (FIXED)
+# 5. systemd service (FIXED FOR VENV)
 # -------------------------
 sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
 [Unit]
@@ -51,10 +59,10 @@ After=network.target
 
 [Service]
 WorkingDirectory=$APP_DIR
-ExecStart=/usr/bin/python3 app/main.py
+ExecStart=$APP_DIR/venv/bin/python app/main.py
 Restart=always
 RestartSec=3
-User=$(whoami)
+User=$USER
 
 [Install]
 WantedBy=multi-user.target

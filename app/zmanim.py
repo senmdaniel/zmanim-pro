@@ -171,19 +171,76 @@ def get_holiday_info(d):
     g = dates.GregorianDate(d.year, d.month, d.day)
     h = g.to_heb()
 
+    # ----------------------------
+    # YOM TOV DAYS
+    # ----------------------------
     yom_tov_days = {
-        (1, 1), (1, 2),
-        (1, 10),
-        (1, 15), (1, 16),
-        (1, 22), (1, 23),
-        (7, 15), (7, 16),
-        (7, 21), (7, 22),
-        (9, 6), (9, 7)
+        (7, 15): ("pesach", "Pesach", 1),
+        (7, 16): ("pesach", "Pesach", 2),
+        (7, 21): ("pesach", "Pesach", 7),
+        (7, 22): ("pesach", "Pesach", 8),
+
+        (9, 6): ("shavuot", "Shavuot", 1),
+        (9, 7): ("shavuot", "Shavuot", 2),
+
+        (1, 1): ("rosh_hashanah", "Rosh Hashanah", 1),
+        (1, 2): ("rosh_hashanah", "Rosh Hashanah", 2),
+
+        (1, 10): ("yom_kippur", "Yom Kippur", 1),
+
+        (1, 15): ("sukkot", "Sukkot", 1),
+        (1, 16): ("sukkot", "Sukkot", 2),
+        (1, 22): ("shemini_atzeret", "Shemini Atzeret", 1),
+        (1, 23): ("simchat_torah", "Simchat Torah", 1),
     }
 
-    is_yom_tov = (h.month, h.day) in yom_tov_days
+    key = (h.month, h.day)
 
+    # ----------------------------
+    # CURRENT DAY
+    # ----------------------------
+    if key in yom_tov_days:
+        hk, name, day_index = yom_tov_days[key]
+
+        return {
+            "is_yom_tov": True,
+            "is_erev_yom_tov": False,
+            "holiday_key": hk,
+            "holiday_name": name,
+            "type": "yom_tov",
+            "day_index": day_index
+        }
+
+    # ----------------------------
+    # EREV YOM TOV CHECK
+    # ----------------------------
+    # check if tomorrow is Yom Tov
+    tomorrow = d.fromordinal(d.toordinal() + 1)
+    tg = dates.GregorianDate(tomorrow.year, tomorrow.month, tomorrow.day)
+    th = tg.to_heb()
+
+    tomorrow_key = (th.month, th.day)
+
+    if tomorrow_key in yom_tov_days:
+        hk, name, day_index = yom_tov_days[tomorrow_key]
+
+        return {
+            "is_yom_tov": False,
+            "is_erev_yom_tov": True,
+            "holiday_key": hk,
+            "holiday_name": f"Erev {name}",
+            "type": "erev_yom_tov",
+            "day_index": 0
+        }
+
+    # ----------------------------
+    # NORMAL DAY
+    # ----------------------------
     return {
-        "is_yom_tov": is_yom_tov,
-        "name": "yom_tov" if is_yom_tov else None
+        "is_yom_tov": False,
+        "is_erev_yom_tov": False,
+        "holiday_key": None,
+        "holiday_name": None,
+        "type": None,
+        "day_index": None
     }

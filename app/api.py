@@ -15,7 +15,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # -----------------------
-# CONFIG
+# CONFIG LOADER
 # -----------------------
 def get_city():
     path = os.path.join(BASE_DIR, "config", "settings.json")
@@ -23,18 +23,23 @@ def get_city():
         return json.load(f)["city"]
 
 
+def get_config(city):
+    """
+    Bouw config object dat zmanim.py verwacht
+    """
+    path = os.path.join(BASE_DIR, "config", "settings.json")
+
+    with open(path, "r") as f:
+        cfg = json.load(f)
+
+    cfg["city"] = city
+    return cfg
+
+
 # -----------------------
-# DATE PARSER (single source of truth)
+# DATE PARSER
 # -----------------------
 def parse_date():
-    """
-    Input:
-    - ?date=2026-05-05
-    - ?date=2026/05/05
-    - ?datum=2026-05-05
-    - ?datum=2026/05/05
-    """
-
     raw = request.args.get("date") or request.args.get("datum")
 
     if not raw:
@@ -59,28 +64,33 @@ def status():
     if d is None:
         return jsonify({"error": warning}), 400
 
-    zmanim = calculate_zmanim(city, d)
-    holiday = get_holiday_info(city, d)
+    config = get_config(city)
+
+    zmanim = calculate_zmanim(config, d)
+    holiday = get_holiday_info(d)
     hebrew = get_hebrew_date(d)
 
     return jsonify({
         "city": city,
         "date": d.isoformat(),
 
-        # 🕎 Hebrew calendar
+        # Hebrew
         "hebrew_date": hebrew["hebrew_date"],
         "hebrew_day": hebrew["hebrew_day"],
         "hebrew_month": hebrew["hebrew_month"],
         "hebrew_year": hebrew["hebrew_year"],
 
-        # 🪵 warnings (important for Loxone debugging)
+        # Debug
         "warning": warning,
 
-        # 🕎 holiday info
+        # Holiday state
         "is_yom_tov": holiday.get("is_yom_tov"),
-        "holiday": holiday.get("name"),
+        "is_erev_yom_tov": holiday.get("is_erev_yom_tov"),
+        "holiday": holiday.get("holiday_name"),
+        "holiday_key": holiday.get("holiday_key"),
+        "type": holiday.get("type"),
 
-        # 🌅 zmanim
+        # Zmanim
         **zmanim
     })
 
@@ -96,7 +106,9 @@ def zmanim_route():
     if d is None:
         return jsonify({"error": warning}), 400
 
-    zmanim = calculate_zmanim(city, d)
+    config = get_config(city)
+
+    zmanim = calculate_zmanim(config, d)
 
     return jsonify({
         "city": city,

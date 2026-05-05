@@ -1,66 +1,16 @@
-from datetime import timedelta
-from astral import LocationInfo
-from astral.sun import sun
-import pytz
-import json
-import os
-
-from pyluach import dates
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-# ----------------------------
-# HELPERS
-# ----------------------------
-def load_overrides(city):
-    path = os.path.join(BASE_DIR, "data", f"{city}.json")
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            return json.load(f)
-    return {}
-
-
-def apply_overrides(zmanim, overrides, date):
-    key = date.isoformat()
-
-    if key not in overrides:
-        return zmanim
-
-    override = overrides[key]
-
-    allowed_keys = {
-        "alos",
-        "chatzos",
-        "plag_hamincha",
-        "shkia",
-        "tzeis",
-        "candle_lighting"
-    }
-
-    for k, v in override.items():
-        if k in allowed_keys:
-            zmanim[k] = v
-
-    return zmanim
-
-
-def format_time(dt):
-    return dt.strftime("%H:%M")
-
-
-def to_timestamp(dt):
-    return int(dt.timestamp())
-
-
-# ----------------------------
-# CORE ZMANIM
-# ----------------------------
 def calculate_zmanim(config, d):
     """
-    Production-ready zmanim engine
+    Production-safe zmanim engine
     """
+
+    # ----------------------------
+    # CONFIG SAFETY CHECK
+    # ----------------------------
+    required_keys = ["timezone", "city", "latitude", "longitude"]
+
+    for key in required_keys:
+        if key not in config:
+            raise ValueError(f"Missing config key: {key}")
 
     tz = pytz.timezone(config["timezone"])
 
@@ -68,8 +18,8 @@ def calculate_zmanim(config, d):
         name=config["city"],
         region="",
         timezone=config["timezone"],
-        latitude=config["latitude"],
-        longitude=config["longitude"]
+        latitude=float(config["latitude"]),
+        longitude=float(config["longitude"])
     )
 
     s = sun(location.observer, date=d, tzinfo=tz)
@@ -87,25 +37,28 @@ def calculate_zmanim(config, d):
     plag = sunset - (1.25 * shaah_zmanit)
 
     # ----------------------------
-    # CONFIGURABLE TIMES
+    # SAFE CONFIG VALUES
     # ----------------------------
+    alos_cfg = config.get("alos", {"method": "fixed", "minutes": 72})
+    tzeis_cfg = config.get("tzeis", {"method": "fixed", "minutes": 40})
+    candle_min = config.get("candle_lighting", 18)
+
     # Alos
-    if config["alos"]["method"] == "fixed":
-        alos = sunrise - timedelta(minutes=config["alos"]["minutes"])
+    if alos_cfg["method"] == "fixed":
+        alos = sunrise - timedelta(minutes=alos_cfg["minutes"])
     else:
         raise ValueError("Unsupported alos method")
 
     # Tzeis
-    if config["tzeis"]["method"] == "fixed":
-        tzeis = sunset + timedelta(minutes=config["tzeis"]["minutes"])
+    if tzeis_cfg["method"] == "fixed":
+        tzeis = sunset + timedelta(minutes=tzeis_cfg["minutes"])
     else:
         raise ValueError("Unsupported tzeis method")
 
-    # Candle lighting
-    candle_lighting = sunset - timedelta(minutes=config["candle_lighting"])
+    candle_lighting = sunset - timedelta(minutes=candle_min)
 
     # ----------------------------
-    # BUILD RESPONSE
+    # RESPONSE
     # ----------------------------
     zmanim = {
         "alos": format_time(alos),
@@ -115,7 +68,6 @@ def calculate_zmanim(config, d):
         "tzeis": format_time(tzeis),
         "candle_lighting": format_time(candle_lighting),
 
-        # timestamps (cruciaal voor Loxone)
         "alos_ts": to_timestamp(alos),
         "plag_ts": to_timestamp(plag),
         "shkia_ts": to_timestamp(sunset),
@@ -123,57 +75,13 @@ def calculate_zmanim(config, d):
     }
 
     # ----------------------------
-    # OVERRIDES
+    # OVERRIDES (SAFE)
     # ----------------------------
-    overrides = load_overrides(config["city"])
-    zmanim = apply_overrides(zmanim, overrides, d)
+    try:
+        overrides = load_overrides(config["city"])
+        zmanim = apply_overrides(zmanim, overrides, d)
+    except Exception as e:
+        # never crash API on overrides
+        print("Override error:", e)
 
     return zmanim
-
-
-# ----------------------------
-# HEBREW DATE
-# ----------------------------
-def get_hebrew_date(d):
-    g = dates.GregorianDate(d.year, d.month, d.day)
-    h = g.to_heb()
-
-    return {
-        "hebrew_date": str(h),
-        "hebrew_day": h.day,
-        "hebrew_month": h.month,
-        "hebrew_year": h.year
-    }
-
-
-# ----------------------------
-# HOLIDAYS (HEBREW BASED)
-# ----------------------------
-def get_holiday_info(d):
-    g = dates.GregorianDate(d.year, d.month, d.day)
-    h = g.to_heb()
-
-    holidays = {
-        (1, 1): "Rosh Hashanah 1",
-        (1, 2): "Rosh Hashanah 2",
-        (1, 10): "Yom Kippur",
-        (1, 15): "Sukkot 1",
-        (1, 16): "Sukkot 2",
-        (1, 22): "Shemini Atzeret",
-        (1, 23): "Simchat Torah",
-        (3, 25): "Chanukah",
-        (7, 15): "Pesach 1",
-        (7, 16): "Pesach 2",
-        (7, 21): "Pesach 7",
-        (7, 22): "Pesach 8",
-        (9, 6): "Shevuot 1",
-        (9, 7): "Shevuot 2",
-        (2, 18): "Lag BaOmer"
-    }
-
-    name = holidays.get((h.month, h.day))
-
-    return {
-        "is_yom_tov": name is not None,
-        "name": name
-    }

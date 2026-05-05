@@ -2,70 +2,80 @@
 
 set -e
 
+CITY=${1:-antwerp}
+REPO="https://github.com/senmdaniel/zmanim-pro.git"
 APP_DIR="$HOME/zmanim-pro"
-LOG_FILE="$APP_DIR/update.log"
-LOCK_FILE="$APP_DIR/update.lock"
-VERSION_FILE="$APP_DIR/version.txt"
 
-echo "--------------------------------------------------" >> "$LOG_FILE"
-echo "$(date '+%Y-%m-%d %H:%M:%S') 🔄 Update check gestart" >> "$LOG_FILE"
-
-cd "$APP_DIR" || exit 1
+echo "🚀 Zmanim-Pro Installer"
+echo "🌍 City: $CITY"
 
 # -------------------------
-# prevent parallel runs
+# 1. dependencies
 # -------------------------
-if [ -f "$LOCK_FILE" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ⚠️ Update al bezig" >> "$LOG_FILE"
-    exit 0
-fi
-
-touch "$LOCK_FILE"
-trap "rm -f $LOCK_FILE" EXIT
+sudo apt update -y
+sudo apt install -y git python3 python3-pip python3-venv
 
 # -------------------------
-# fetch latest code
+# 2. clone repo
 # -------------------------
-git fetch origin >> "$LOG_FILE" 2>&1
-
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main)
-
-# -------------------------
-# no update
-# -------------------------
-if [ "$LOCAL" = "$REMOTE" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') ✔ Geen updates (versie: $LOCAL)" >> "$LOG_FILE"
-    exit 0
+if [ -d "$APP_DIR/.git" ]; then
+    echo "🔄 Updating repo..."
+    cd "$APP_DIR"
+    git pull
+else
+    echo "⬇️ Cloning repo..."
+    git clone "$REPO" "$APP_DIR"
+    cd "$APP_DIR"
 fi
 
 # -------------------------
-# update found
+# 3. python venv (clean + safe)
 # -------------------------
-echo "$(date '+%Y-%m-%d %H:%M:%S') ⬇️ Update gevonden" >> "$LOG_FILE"
-echo "   local : $LOCAL" >> "$LOG_FILE"
-echo "   remote: $REMOTE" >> "$LOG_FILE"
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
 
-git reset --hard origin/main >> "$LOG_FILE" 2>&1
+source venv/bin/activate
 
-echo "$REMOTE" > "$VERSION_FILE"
-
-# -------------------------
-# python deps
-# -------------------------
-source "$APP_DIR/venv/bin/activate"
-
-pip install --upgrade pip >> "$LOG_FILE" 2>&1
-pip install -r requirements.txt >> "$LOG_FILE" 2>&1
+pip install --upgrade pip
+pip install -r requirements.txt
 
 # -------------------------
-# SAFE restart (NO sudo needed)
+# 4. config (SAFE)
 # -------------------------
-systemctl restart zmanim.service >> "$LOG_FILE" 2>&1
+mkdir -p config
+
+cat > config/settings.json <<EOF
+{
+  "city": "$CITY"
+}
+EOF
 
 # -------------------------
-# done
+# 5. systemd service (NO sudo later needed)
 # -------------------------
-echo "$(date '+%Y-%m-%d %H:%M:%S') ✅ Update voltooid" >> "$LOG_FILE"
-echo "👉 Actieve versie: $REMOTE" >> "$LOG_FILE"
-echo "--------------------------------------------------" >> "$LOG_FILE"
+sudo tee /etc/systemd/system/zmanim.service > /dev/null <<EOF
+[Unit]
+Description=Zmanim Pro
+After=network.target
+
+[Service]
+User=$USER
+WorkingDirectory=$APP_DIR
+ExecStart=$APP_DIR/venv/bin/python app/main.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable zmanim.service
+sudo systemctl restart zmanim.service
+
+# -------------------------
+# 6. done
+# -------------------------
+echo "✅ INSTALL COMPLETE"
+echo "🌐 http://$(hostname -I | awk '{print $1}'):5000/status"

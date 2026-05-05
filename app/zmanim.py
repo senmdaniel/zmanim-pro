@@ -2,7 +2,60 @@ from datetime import datetime
 from pyluach import dates
 
 
+from datetime import timedelta
+from astral import LocationInfo
+from astral.sun import sun
+import pytz
+import json
+import os
+
+
 def calculate_zmanim(city, d):
+    """
+    Echte zon-gebaseerde zmanim (offline)
+    """
+
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(BASE_DIR, "config", "settings.json")
+
+    with open(path, "r") as f:
+        cfg = json.load(f)
+
+    lat = cfg["latitude"]
+    lon = cfg["longitude"]
+    tz = pytz.timezone(cfg["timezone"])
+
+    location = LocationInfo(
+        name=city,
+        region="",
+        timezone=cfg["timezone"],
+        latitude=lat,
+        longitude=lon
+    )
+
+    s = sun(location.observer, date=d, tzinfo=tz)
+
+    sunrise = s["sunrise"]
+    sunset = s["sunset"]
+
+    # daglengte
+    day_length = sunset - sunrise
+    shaah_zmanit = day_length / 12
+
+    chatzos = sunrise + (day_length / 2)
+    plag_hamincha = sunset - (1.25 * shaah_zmanit)
+
+    # simpele maar bruikbare halachische benadering
+    alos = sunrise - timedelta(minutes=72)
+    tzeis = sunset + timedelta(minutes=40)
+
+    return {
+        "alos": sunrise.strftime("%H:%M") if False else alos.strftime("%H:%M"),
+        "chatzos": chatzos.strftime("%H:%M"),
+        "plag_hamincha": plag_hamincha.strftime("%H:%M"),
+        "shkia": sunset.strftime("%H:%M"),
+        "tzeis": tzeis.strftime("%H:%M")
+    }:
     """
     Dummy tijden (later vervangbaar door echte berekening)
     """

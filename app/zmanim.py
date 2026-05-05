@@ -215,7 +215,8 @@ def get_holiday_info(d):
     # EREV YOM TOV CHECK
     # ----------------------------
     # check if tomorrow is Yom Tov
-    tomorrow = d.fromordinal(d.toordinal() + 1)
+   from datetime import timedelta
+tomorrow = d + timedelta(days=1)
     tg = dates.GregorianDate(tomorrow.year, tomorrow.month, tomorrow.day)
     th = tg.to_heb()
 

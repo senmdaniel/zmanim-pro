@@ -1,42 +1,17 @@
-from datetime import datetime
-import json
-import os
-
-# ⚠️ simpele astronomische placeholder (vervang door echte library indien gewenst)
-# Dit maakt je systeem NIET meer afhankelijk van JSON nulls
-
-def calculate_zmanim(city, d):
-    # dummy berekening structuur (vervang later met real zmanim lib)
-    return {
-        "alos": "05:12",
-        "chatzos": "12:44",
-        "plag_hamincha": "18:10",
-        "shkia": "20:58",
-        "tzeis": "21:35"
-    }
+from pyluach import dates
 
 
-def get_holiday_info(city, d):
+def get_hebrew_date(d):
     """
-    Check simpel op vaste Joodse feestdagen (placeholder logica)
-    Vervang later door echte Jewish calendar lib indien gewenst
+    Offline conversie van Gregorian → Hebreeuwse datum
     """
 
-    month_day = (d.month, d.day)
-
-    holidays = {
-        (5, 15): "Lag BaOmer",
-        (1, 1): "Rosh Hashanah",
-        (9, 10): "Yom Kippur"
-    }
-
-    if month_day in holidays:
-        return {
-            "is_yom_tov": True,
-            "name": holidays[month_day]
-        }
+    g = dates.GregorianDate(d.year, d.month, d.day)
+    h = g.to_heb()
 
     return {
-        "is_yom_tov": False,
-        "name": None
+        "hebrew_date": str(h),
+        "hebrew_day": h.day,
+        "hebrew_month": h.month,
+        "hebrew_year": h.year
     }

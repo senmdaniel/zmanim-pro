@@ -1,7 +1,7 @@
 from flask import Flask, jsonify, request
 import json
 import os
-from app.zmanim import get_active_event
+from app.zmanim import get_event
 
 app = Flask(__name__)
 
@@ -14,26 +14,50 @@ def get_city():
         return json.load(f)["city"]
 
 
+def is_yom_tov(holiday):
+    yom_tov_list = [
+        "Pesach",
+        "Shavuot",
+        "Sukkot",
+        "Rosh Hashana",
+        "Yom Kippur"
+    ]
+    return holiday in yom_tov_list
+
+
 @app.route("/status")
 def status():
     city = get_city()
-    date = request.args.get("datum")
 
+    date = request.args.get("datum")
     if not date:
         from datetime import datetime
         date = datetime.now().strftime("%Y-%m-%d")
 
     path = os.path.join(BASE_DIR, "data", f"{city}.json")
-    event = get_active_event(path)
+    event = get_event(path, date)
+
+    if not event:
+        return jsonify({
+            "city": city,
+            "date": date,
+            "holiday": None,
+            "type": None,
+            "is_yom_tov": False,
+            "plag_hamincha": None,
+            "tzeis": None
+        })
+
+    holiday = event.get("holiday")
 
     return jsonify({
         "city": city,
         "date": date,
-        "holiday": event.get("holiday") if event else None,
-        "type": event.get("type") if event else None,
-        "is_yom_tov": event.get("type") == "yom_tov" if event else False,
-        "plag_hamincha": event.get("plag_hamincha") if event else None,
-        "tzeis": event.get("tzeis") if event else None
+        "holiday": holiday,
+        "type": event.get("type"),
+        "is_yom_tov": is_yom_tov(holiday),
+        "plag_hamincha": event.get("plag_hamincha"),
+        "tzeis": event.get("tzeis")
     })
 
 

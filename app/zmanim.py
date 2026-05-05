@@ -24,8 +24,25 @@ def load_overrides(city):
 
 def apply_overrides(zmanim, overrides, date):
     key = date.isoformat()
-    if key in overrides:
-        zmanim.update(overrides[key])
+
+    if key not in overrides:
+        return zmanim
+
+    override = overrides[key]
+
+    allowed_keys = {
+        "alos",
+        "chatzos",
+        "plag_hamincha",
+        "shkia",
+        "tzeis",
+        "candle_lighting"
+    }
+
+    for k, v in override.items():
+        if k in allowed_keys:
+            zmanim[k] = v
+
     return zmanim
 
 

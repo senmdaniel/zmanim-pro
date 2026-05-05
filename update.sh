@@ -6,11 +6,25 @@ echo "🔄 Checking for updates..."
 
 cd $APP_DIR || exit
 
-git pull
+# force correct repo state
+git fetch origin
 
-source venv/bin/activate
-pip install -r requirements.txt
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/main)
 
-sudo systemctl restart zmanim.service
+if [ "$LOCAL" != "$REMOTE" ]; then
+    echo "⬇️ Update gevonden"
 
-echo "✅ Update complete"
+    git reset --hard origin/main
+
+    # activate venv properly
+    source "$APP_DIR/venv/bin/activate"
+
+    pip install -r requirements.txt
+
+    sudo systemctl restart zmanim.service
+
+    echo "✅ Update toegepast"
+else
+    echo "✔ Geen updates"
+fi

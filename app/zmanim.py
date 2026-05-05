@@ -1,22 +1,21 @@
 import json
-from datetime import datetime
 
-def get_active_event(path):
-    try:
-        with open(path, "r") as f:
-            data = json.load(f)
 
-        now = datetime.now()
+def is_yom_tov(path, date_obj):
+    with open(path, "r") as f:
+        data = json.load(f)
 
-        for event in data["holidays"]:
-            start = datetime.fromisoformat(event["start"])
-            end = datetime.fromisoformat(event["end"])
+    for event in data.get("events", []):
+        if event["type"] == "yom_tov":
+            if event["date"] == str(date_obj):
+                return True
 
-            if start <= now <= end:
-                return event["name"]
+    return False
 
-        return None
 
-    except Exception as e:
-        print("Zmanim error:", e)
-        return None
+def calculate_times(date_obj):
+    # voorlopig dummy (later echte astronomische berekening)
+    return {
+        "plag_hamincha": "18:42",
+        "tzeis": "21:31"
+    }

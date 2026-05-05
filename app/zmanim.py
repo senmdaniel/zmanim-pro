@@ -137,12 +137,20 @@ def get_holiday_info(d):
     h = g.to_heb()
 
     holidays = {
-        (1, 1): "Rosh Hashanah",
+        (1, 1): "Rosh Hashanah 1",
+        (1, 2): "Rosh Hashanah 2",
         (1, 10): "Yom Kippur",
-        (1, 15): "Sukkot",
+        (1, 15): "Sukkot 1",
+        (1, 16): "Sukkot 2",
         (1, 22): "Shemini Atzeret",
+        (1, 23): "Simchat Torah",
         (3, 25): "Chanukah",
-        (7, 15): "Pesach",
+        (7, 15): "Pesach 1",
+        (7, 16): "Pesach 2",
+        (7, 21): "Pesach 7",
+        (7, 22): "Pesach 8",
+        (9, 6): "Shevuot 1",
+        (9, 7): "Shevuot 2",
         (2, 18): "Lag BaOmer"
     }
 

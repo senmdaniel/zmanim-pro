@@ -1,3 +1,6 @@
 {
-  "city": "antwerp"
+  "city": "antwerp",
+  "latitude": 51.2194,
+  "longitude": 4.4025,
+  "timezone": "Europe/Brussels"
 }

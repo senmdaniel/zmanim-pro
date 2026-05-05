@@ -1,99 +1,63 @@
 from flask import Flask, jsonify, request
+from datetime import date, datetime
 import json
 import os
-from app.zmanim import get_event
+
+from app.zmanim import calculate_zmanim, get_holiday_info
 
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-# -------------------------
-# CITY CONFIG
-# -------------------------
 def get_city():
     path = os.path.join(BASE_DIR, "config", "settings.json")
     with open(path, "r") as f:
         return json.load(f)["city"]
 
 
-# -------------------------
-# DATE NORMALIZER (BELANGRIJK)
-# -------------------------
-def normalize_date(date_str):
-    if not date_str:
-        from datetime import datetime
-        return datetime.now().strftime("%Y-%m-%d")
+def parse_date():
+    """Loxone stuurt: ?date=2026-05-05 of 2026/05/05"""
+    d = request.args.get("date")
 
-    return date_str.replace("/", "-")
+    if not d:
+        return date.today()
 
-
-# -------------------------
-# YOM TOV CHECK
-# -------------------------
-def is_yom_tov(holiday):
-    if not holiday:
-        return False
-
-    yom_tov_list = [
-        "Pesach",
-        "Shavuot",
-        "Sukkot",
-        "Rosh Hashana",
-        "Yom Kippur"
-    ]
-    return holiday in yom_tov_list
+    d = d.replace("/", "-")
+    return datetime.strptime(d, "%Y-%m-%d").date()
 
 
-# -------------------------
-# MAIN ENDPOINT
-# -------------------------
 @app.route("/status")
 def status():
     city = get_city()
+    d = parse_date()
 
-    raw_date = request.args.get("datum")
-    date = normalize_date(raw_date)
-
-    path = os.path.join(BASE_DIR, "data", f"{city}.json")
-    event = get_event(path, date)
-
-    # SAFE DEFAULT RESPONSE
-    if not event:
-        return jsonify({
-            "city": city,
-            "date": date,
-            "holiday": None,
-            "type": None,
-            "is_yom_tov": False,
-            "plag_hamincha": None,
-            "tzeis": None
-        })
-
-    holiday = event.get("holiday")
+    zmanim = calculate_zmanim(city, d)
+    holiday = get_holiday_info(city, d)
 
     return jsonify({
         "city": city,
-        "date": date,
-        "holiday": holiday,
-        "type": event.get("type"),
-        "is_yom_tov": is_yom_tov(holiday),
-        "plag_hamincha": event.get("plag_hamincha"),
-        "tzeis": event.get("tzeis")
+        "date": d.isoformat(),
+        "is_yom_tov": holiday["is_yom_tov"],
+        "holiday": holiday["name"],
+        **zmanim
     })
 
 
-# -------------------------
-# ALIAS ENDPOINT
-# -------------------------
 @app.route("/zmanim")
-def zmanim():
-    return status()
+def zmanim_route():
+    city = get_city()
+    d = parse_date()
+
+    zmanim = calculate_zmanim(city, d)
+
+    return jsonify({
+        "city": city,
+        "date": d.isoformat(),
+        **zmanim
+    })
 
 
-# -------------------------
-# HEALTH CHECK
-# -------------------------
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})

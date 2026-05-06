@@ -2,56 +2,12 @@ from datetime import timedelta
 from astral import LocationInfo
 from astral.sun import sun
 import pytz
-import json
-import os
 from pyluach import dates
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ----------------------------
 # HELPERS
 # ----------------------------
-def load_overrides(city):
-    try:
-        path = os.path.join(BASE_DIR, "data", f"{city}.json")
-        if os.path.exists(path):
-            with open(path, "r") as f:
-                return json.load(f)
-    except Exception as e:
-        print("Override load error:", e)
-
-    return {}
-
-
-def apply_overrides(zmanim, overrides, date):
-    try:
-        key = date.isoformat()
-
-        if key not in overrides:
-            return zmanim
-
-        allowed_keys = {
-            "alos",
-            "chatzos",
-            "plag_hamincha",
-            "shkia",
-            "tzeis",
-            "candle_lighting"
-        }
-
-        for k, v in overrides[key].items():
-            if k in allowed_keys:
-                zmanim[k] = v
-
-        return zmanim
-
-    except Exception as e:
-        print("Override apply error:", e)
-        return zmanim
-
-
 def format_time(dt):
     return dt.strftime("%H:%M")
 
@@ -61,28 +17,43 @@ def to_timestamp(dt):
 
 
 # ----------------------------
-# CORE ZMANIM ENGINE
+# SAFE CONFIG PARSER
 # ----------------------------
-from datetime import timedelta
+def get_value(config, key, default):
+    value = config.get(key, default)
 
+    if isinstance(value, dict):
+        return value.get("minutes", default)
+
+    if isinstance(value, int) or isinstance(value, float):
+        return value
+
+    return default
+
+
+# ----------------------------
+# CORE ENGINE
+# ----------------------------
 def calculate_zmanim(config, d):
-    tz = pytz.timezone(config["timezone"])
+
+    city = config.get("city", "unknown")
+    tz = config.get("timezone", "UTC")
 
     location = LocationInfo(
-        name=config["city"],
+        name=city,
         region="",
-        timezone=config["timezone"],
-        latitude=float(config["latitude"]),
-        longitude=float(config["longitude"])
+        timezone=tz,
+        latitude=float(config.get("latitude", 0)),
+        longitude=float(config.get("longitude", 0))
     )
 
-    s = sun(location.observer, date=d, tzinfo=tz)
+    s = sun(location.observer, date=d, tzinfo=pytz.timezone(tz))
 
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
     # ----------------------------
-    # CORE DAY STRUCTURE
+    # CORE HALACHA TIMES
     # ----------------------------
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
@@ -91,74 +62,45 @@ def calculate_zmanim(config, d):
     plag = sunset - (1.25 * shaah_zmanit)
 
     # ----------------------------
-    # FIXED ZMANIM
+    # SAFE CONFIG VALUES
     # ----------------------------
-    alos = sunrise - timedelta(minutes=config.get("alos", {}).get("minutes", 72))
-    tzeis = sunset + timedelta(minutes=config.get("tzeis", {}).get("minutes", 40))
-    candle = sunset - timedelta(minutes=config.get("candle_lighting", 18))
+    alos_min = get_value(config, "alos", 72)
+    tzeis_min = get_value(config, "tzeis", 40)
+    candle_min = get_value(config, "candle_lighting", 18)
 
     # ----------------------------
-    # STRUCTURED OUTPUT (IMPORTANT FIX)
+    # TIMES
     # ----------------------------
-    zmanim = {
-        "city": config["city"],
+    alos = sunrise - timedelta(minutes=alos_min)
+    tzeis = sunset + timedelta(minutes=tzeis_min)
+    candle = sunset - timedelta(minutes=candle_min)
+
+    # ----------------------------
+    # OUTPUT
+    # ----------------------------
+    return {
+        "city": city,
         "date": d.isoformat(),
 
         # CORE
-        "sun": {
-            "sunrise": format_time(sunrise),
-            "sunset": format_time(sunset),
-            "chatzos": format_time(chatzos),
-        },
+        "sunrise": format_time(sunrise),
+        "sunset": format_time(sunset),
+        "shkia": format_time(sunset),
 
-        # FIXED TIMES
         "alos": format_time(alos),
-        "chatzos": format_time(chatzos),
-        "plag": format_time(plag),
-        "shkia": format_time(sunset),   # 🔥 SINGLE SOURCE OF TRUTH
         "tzeis": format_time(tzeis),
         "candle_lighting": format_time(candle),
 
-        # STRUCTURED BLOCKS
-        "dawn": {
-            "alos_90": format_time(sunrise - timedelta(minutes=90)),
-            "alos_72": format_time(alos),
-            "alos_16_1": format_time(sunrise - timedelta(minutes=72))  # approx
-        },
+        "chatzos": format_time(chatzos),
+        "plag": format_time(plag),
 
-        "shema": {
-            "gra_end_shema": format_time(sunrise + (day_length * 0.25)),
-            "gra_end_shacharis": format_time(sunrise + (day_length * 0.35)),
-        },
-
-        "mincha": {
-            "mincha_gedola": format_time(chazos + timedelta(minutes=30)),
-            "mincha_ketana": format_time(sunset - (day_length * 0.25)),
-            "plag_hamincha": format_time(plag)
-        },
-
-        "night": {
-            "chatzos_laila": format_time(chatzos + day_length)
-        },
-
-        "tzeis": {
-            "13_5": format_time(sunset + timedelta(minutes=13.5)),
-            "16_1": format_time(sunset + timedelta(minutes=16.1 * 4)),
-            "18": format_time(sunset + timedelta(minutes=18)),
-            "24": format_time(sunset + timedelta(minutes=24)),
-            "27": format_time(sunset + timedelta(minutes=27)),
-            "36": format_time(sunset + timedelta(minutes=36)),
-            "40": format_time(sunset + timedelta(minutes=40)),
-            "rt_72": format_time(sunset + timedelta(minutes=72)),
-        },
-
-        # timestamps
+        # TIMESTAMPS
         "sunrise_ts": to_timestamp(sunrise),
         "sunset_ts": to_timestamp(sunset),
         "plag_ts": to_timestamp(plag),
+        "tzeis_ts": to_timestamp(tzeis),
     }
 
-    return zmanim
 
 # ----------------------------
 # HEBREW DATE
@@ -176,7 +118,7 @@ def get_hebrew_date(d):
 
 
 # ----------------------------
-# HOLIDAY ENGINE (YOM TOV + EREV)
+# HOLIDAY ENGINE
 # ----------------------------
 def get_holiday_info(d):
 
@@ -223,15 +165,12 @@ def get_holiday_info(d):
     # ----------------------------
     # EREV YOM TOV
     # ----------------------------
-    tomorrow = d + timedelta(days=1)
-
+    tomorrow = d.fromordinal(d.toordinal() + 1)
     tg = dates.GregorianDate(tomorrow.year, tomorrow.month, tomorrow.day)
     th = tg.to_heb()
 
-    tomorrow_key = (th.month, th.day)
-
-    if tomorrow_key in yom_tov_days:
-        hk, name, day_index = yom_tov_days[tomorrow_key]
+    if (th.month, th.day) in yom_tov_days:
+        hk, name, _ = yom_tov_days[(th.month, th.day)]
 
         return {
             "is_yom_tov": False,

@@ -127,9 +127,9 @@ def get_holiday_info(d):
 
     yom_tov_days = {
          (1, 14): ("12_erev_pesach", "Pesach", 1),
-        (1, 15): ("13_pesach 1", "Pesach 1de", 1),
+        (1, 15): ("13_pesach 1", "Pesach", 1),
         (1, 16): ("14_pesach 2", "Pesach", 1),
-        (1, 20): ("15_erev_pesach_7", "Pesach", 1),
+        (1, 20): ("15_erev_pesach_6", "Pesach", 1),
         (1, 21): ("16_pesach 7", "Pesach", 1),
         (1, 22): ("17_pesach 8", "Pesach", 1),
 

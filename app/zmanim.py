@@ -151,23 +151,23 @@ def get_holiday_info(d):
     h = g.to_heb()
 
     yom_tov_days = {
-        (7, 15): ("pesach", "Pesach", 1),
-        (7, 16): ("pesach", "Pesach", 2),
-        (7, 21): ("pesach", "Pesach", 7),
-        (7, 22): ("pesach", "Pesach", 8),
+        (1, 15): ("pesach", "Pesach", 1),
+        (1, 16): ("pesach", "Pesach", 2),
+        (1, 21): ("pesach", "Pesach", 7),
+        (1, 22): ("pesach", "Pesach", 8),
 
-        (9, 6): ("shavuot", "Shavuot", 1),
-        (9, 7): ("shavuot", "Shavuot", 2),
+        (3, 6): ("shavuot", "Shavuot", 1),
+        (3, 7): ("shavuot", "Shavuot", 2),
 
-        (1, 1): ("rosh_hashanah", "Rosh Hashanah", 1),
-        (1, 2): ("rosh_hashanah", "Rosh Hashanah", 2),
+        (7, 1): ("rosh_hashanah", "Rosh Hashanah", 1),
+        (7, 2): ("rosh_hashanah", "Rosh Hashanah", 2),
 
-        (1, 10): ("yom_kippur", "Yom Kippur", 1),
+        (7, 10): ("yom_kippur", "Yom Kippur", 1),
 
-        (1, 15): ("sukkot", "Sukkot", 1),
-        (1, 16): ("sukkot", "Sukkot", 2),
-        (1, 22): ("shemini_atzeret", "Shemini Atzeret", 1),
-        (1, 23): ("simchat_torah", "Simchat Torah", 1),
+        (7, 15): ("sukkot", "Sukkot", 1),
+        (7, 16): ("sukkot", "Sukkot", 2),
+        (7, 22): ("shemini_atzeret", "Shemini Atzeret", 1),
+        (7, 23): ("simchat_torah", "Simchat Torah", 1),
     }
 
     key = (h.month, h.day)

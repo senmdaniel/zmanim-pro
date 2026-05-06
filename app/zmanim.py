@@ -63,9 +63,18 @@ def to_timestamp(dt):
 # ----------------------------
 # CORE ZMANIM ENGINE
 # ----------------------------
-def calculate_zmanim(config, d):
+from datetime import timedelta
 
+def calculate_zmanim(config, d):
+    """
+    Clean production zmanim engine (Pi + Loxone ready)
+    """
+
+    # ----------------------------
+    # VALIDATION
+    # ----------------------------
     required = ["city", "latitude", "longitude", "timezone"]
+
     for r in required:
         if r not in config:
             raise ValueError(f"Missing config key: {r}")
@@ -85,46 +94,111 @@ def calculate_zmanim(config, d):
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
+    # ----------------------------
+    # BASE HALACHIC VALUES
+    # ----------------------------
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
-
     chatzos = sunrise + (day_length / 2)
-    plag = sunset - (1.25 * shaah_zmanit)
 
-    alos_cfg = config.get("alos", {"method": "fixed", "minutes": 72})
-    tzeis_cfg = config.get("tzeis", {"method": "fixed", "minutes": 40})
-    candle_min = config.get("candle_lighting", 18)
-
-    if alos_cfg["method"] == "fixed":
-        alos = sunrise - timedelta(minutes=alos_cfg["minutes"])
-    else:
-        raise ValueError("Unsupported alos method")
-
-    if tzeis_cfg["method"] == "fixed":
-        tzeis = sunset + timedelta(minutes=tzeis_cfg["minutes"])
-    else:
-        raise ValueError("Unsupported tzeis method")
-
-    candle_lighting = sunset - timedelta(minutes=candle_min)
-
-    zmanim = {
-        "alos": format_time(alos),
-        "chatzos": format_time(chatzos),
-        "plag_hamincha": format_time(plag),
-        "shkia": format_time(sunset),
-        "tzeis": format_time(tzeis),
-        "candle_lighting": format_time(candle_lighting),
-
-        "alos_ts": to_timestamp(alos),
-        "plag_ts": to_timestamp(plag),
-        "shkia_ts": to_timestamp(sunset),
-        "tzeis_ts": to_timestamp(tzeis)
+    # =========================================================
+    # 🌅 DAWN (ALOT HASHACHAR)
+    # =========================================================
+    dawn = {
+        "alos_90": sunrise - timedelta(minutes=90),
+        "alos_72": sunrise - timedelta(minutes=72),
+        "alos_16_1": sunrise - timedelta(minutes=72)  # benadering
     }
 
-    overrides = load_overrides(config["city"])
-    zmanim = apply_overrides(zmanim, overrides, d)
+    # =========================================================
+    # 🌄 SUN
+    # =========================================================
+    sun_block = {
+        "sunrise": sunrise,
+        "sunset": sunset,
+        "chatzos": chatzos
+    }
 
-    return zmanim
+    # =========================================================
+    # 📖 SHEMA TIMES
+    # =========================================================
+    shema = {
+        "gra_end_shema": sunrise + 3 * shaah_zmanit,
+        "gra_end_shacharis": sunrise + 4 * shaah_zmanit
+    }
+
+    # =========================================================
+    # 🕍 MINCHA
+    # =========================================================
+    mincha = {
+        "mincha_gedola": chatzos + timedelta(minutes=30),
+        "mincha_ketana": chatzos + 6 * shaah_zmanit,
+        "plag_hamincha": sunset - 1.25 * shaah_zmanit
+    }
+
+    # =========================================================
+    # 🌇 NIGHTFALL (TZEIS)
+    # =========================================================
+    tzeis = {
+        "13_5": sunset + timedelta(minutes=13.5),
+        "16_1": sunset + timedelta(minutes=72),
+        "18": sunset + timedelta(minutes=18),
+        "24": sunset + timedelta(minutes=24),
+        "27": sunset + timedelta(minutes=27),
+        "36": sunset + timedelta(minutes=36),
+        "40": sunset + timedelta(minutes=40),
+        "rt_72": sunset + timedelta(minutes=72)
+    }
+
+    # =========================================================
+    # 🌌 NIGHT
+    # =========================================================
+    night = {
+        "chatzos_laila": sunset + (day_length / 2)
+    }
+
+    # =========================================================
+    # OUTPUT FLAT + LOXONE FRIENDLY
+    # =========================================================
+    def ts(dt):
+        return int(dt.timestamp())
+
+    def fmt(dt):
+        return dt.strftime("%H:%M")
+
+    result = {
+        "city": config["city"],
+        "date": d.isoformat(),
+
+        # RAW STRUCTURE (for apps later)
+        "dawn": {k: fmt(v) for k, v in dawn.items()},
+        "sun": {k: fmt(v) for k, v in sun_block.items()},
+        "shema": {k: fmt(v) for k, v in shema.items()},
+        "mincha": {k: fmt(v) for k, v in mincha.items()},
+        "tzeis": {k: fmt(v) for k, v in tzeis.items()},
+        "night": {k: fmt(v) for k, v in night.items()},
+
+        # FLAT (Loxone uses this)
+        "alos": fmt(dawn["alos_72"]),
+        "sunrise": fmt(sunrise),
+        "sunset": fmt(sunset),
+        "chatzos": fmt(chatzos),
+        "plag": fmt(mincha["plag_hamincha"]),
+
+        # timestamps
+        "sunrise_ts": ts(sunrise),
+        "sunset_ts": ts(sunset),
+        "plag_ts": ts(mincha["plag_hamincha"]),
+        "tzeis_ts": ts(tzeis["16_1"])
+    }
+
+    # ----------------------------
+    # OVERRIDES (safe)
+    # ----------------------------
+    overrides = load_overrides(config["city"])
+    result = apply_overrides(result, overrides, d)
+
+    return result
 
 
 # ----------------------------

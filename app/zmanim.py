@@ -66,19 +66,6 @@ def to_timestamp(dt):
 from datetime import timedelta
 
 def calculate_zmanim(config, d):
-    """
-    Clean production zmanim engine (Pi + Loxone ready)
-    """
-
-    # ----------------------------
-    # VALIDATION
-    # ----------------------------
-    required = ["city", "latitude", "longitude", "timezone"]
-
-    for r in required:
-        if r not in config:
-            raise ValueError(f"Missing config key: {r}")
-
     tz = pytz.timezone(config["timezone"])
 
     location = LocationInfo(
@@ -95,111 +82,83 @@ def calculate_zmanim(config, d):
     sunset = s["sunset"]
 
     # ----------------------------
-    # BASE HALACHIC VALUES
+    # CORE DAY STRUCTURE
     # ----------------------------
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
+
     chatzos = sunrise + (day_length / 2)
+    plag = sunset - (1.25 * shaah_zmanit)
 
-    # =========================================================
-    # 🌅 DAWN (ALOT HASHACHAR)
-    # =========================================================
-    dawn = {
-        "alos_90": sunrise - timedelta(minutes=90),
-        "alos_72": sunrise - timedelta(minutes=72),
-        "alos_16_1": sunrise - timedelta(minutes=72)  # benadering
-    }
+    # ----------------------------
+    # FIXED ZMANIM
+    # ----------------------------
+    alos = sunrise - timedelta(minutes=config.get("alos", {}).get("minutes", 72))
+    tzeis = sunset + timedelta(minutes=config.get("tzeis", {}).get("minutes", 40))
+    candle = sunset - timedelta(minutes=config.get("candle_lighting", 18))
 
-    # =========================================================
-    # 🌄 SUN
-    # =========================================================
-    sun_block = {
-        "sunrise": sunrise,
-        "sunset": sunset,
-        "chatzos": chatzos
-    }
-
-    # =========================================================
-    # 📖 SHEMA TIMES
-    # =========================================================
-    shema = {
-        "gra_end_shema": sunrise + 3 * shaah_zmanit,
-        "gra_end_shacharis": sunrise + 4 * shaah_zmanit
-    }
-
-    # =========================================================
-    # 🕍 MINCHA
-    # =========================================================
-    mincha = {
-        "mincha_gedola": chatzos + timedelta(minutes=30),
-        "mincha_ketana": chatzos + 6 * shaah_zmanit,
-        "plag_hamincha": sunset - 1.25 * shaah_zmanit
-    }
-
-    # =========================================================
-    # 🌇 NIGHTFALL (TZEIS)
-    # =========================================================
-    tzeis = {
-        "13_5": sunset + timedelta(minutes=13.5),
-        "16_1": sunset + timedelta(minutes=72),
-        "18": sunset + timedelta(minutes=18),
-        "24": sunset + timedelta(minutes=24),
-        "27": sunset + timedelta(minutes=27),
-        "36": sunset + timedelta(minutes=36),
-        "40": sunset + timedelta(minutes=40),
-        "rt_72": sunset + timedelta(minutes=72)
-    }
-
-    # =========================================================
-    # 🌌 NIGHT
-    # =========================================================
-    night = {
-        "chatzos_laila": sunset + (day_length / 2)
-    }
-
-    # =========================================================
-    # OUTPUT FLAT + LOXONE FRIENDLY
-    # =========================================================
-    def ts(dt):
-        return int(dt.timestamp())
-
-    def fmt(dt):
-        return dt.strftime("%H:%M")
-
-    result = {
+    # ----------------------------
+    # STRUCTURED OUTPUT (IMPORTANT FIX)
+    # ----------------------------
+    zmanim = {
         "city": config["city"],
         "date": d.isoformat(),
 
-        # RAW STRUCTURE (for apps later)
-        "dawn": {k: fmt(v) for k, v in dawn.items()},
-        "sun": {k: fmt(v) for k, v in sun_block.items()},
-        "shema": {k: fmt(v) for k, v in shema.items()},
-        "mincha": {k: fmt(v) for k, v in mincha.items()},
-        "tzeis": {k: fmt(v) for k, v in tzeis.items()},
-        "night": {k: fmt(v) for k, v in night.items()},
+        # CORE
+        "sun": {
+            "sunrise": format_time(sunrise),
+            "sunset": format_time(sunset),
+            "chatzos": format_time(chatzos),
+        },
 
-        # FLAT (Loxone uses this)
-        "alos": fmt(dawn["alos_72"]),
-        "sunrise": fmt(sunrise),
-        "sunset": fmt(sunset),
-        "chatzos": fmt(chatzos),
-        "plag": fmt(mincha["plag_hamincha"]),
+        # FIXED TIMES
+        "alos": format_time(alos),
+        "chatzos": format_time(chatzos),
+        "plag": format_time(plag),
+        "shkia": format_time(sunset),   # 🔥 SINGLE SOURCE OF TRUTH
+        "tzeis": format_time(tzeis),
+        "candle_lighting": format_time(candle),
+
+        # STRUCTURED BLOCKS
+        "dawn": {
+            "alos_90": format_time(sunrise - timedelta(minutes=90)),
+            "alos_72": format_time(alos),
+            "alos_16_1": format_time(sunrise - timedelta(minutes=72))  # approx
+        },
+
+        "shema": {
+            "gra_end_shema": format_time(sunrise + (day_length * 0.25)),
+            "gra_end_shacharis": format_time(sunrise + (day_length * 0.35)),
+        },
+
+        "mincha": {
+            "mincha_gedola": format_time(chazos + timedelta(minutes=30)),
+            "mincha_ketana": format_time(sunset - (day_length * 0.25)),
+            "plag_hamincha": format_time(plag)
+        },
+
+        "night": {
+            "chatzos_laila": format_time(chatzos + day_length)
+        },
+
+        "tzeis": {
+            "13_5": format_time(sunset + timedelta(minutes=13.5)),
+            "16_1": format_time(sunset + timedelta(minutes=16.1 * 4)),
+            "18": format_time(sunset + timedelta(minutes=18)),
+            "24": format_time(sunset + timedelta(minutes=24)),
+            "27": format_time(sunset + timedelta(minutes=27)),
+            "36": format_time(sunset + timedelta(minutes=36)),
+            "40": format_time(sunset + timedelta(minutes=40)),
+            "rt_72": format_time(sunset + timedelta(minutes=72)),
+        },
 
         # timestamps
-        "sunrise_ts": ts(sunrise),
-        "sunset_ts": ts(sunset),
-        "plag_ts": ts(mincha["plag_hamincha"]),
-        "tzeis_ts": ts(tzeis["16_1"])
+        "sunrise_ts": to_timestamp(sunrise),
+        "sunset_ts": to_timestamp(sunset),
+        "plag_ts": to_timestamp(plag),
     }
 
-    # ----------------------------
-    # OVERRIDES (safe)
-    # ----------------------------
-    overrides = load_overrides(config["city"])
-    result = apply_overrides(result, overrides, d)
-
-    return result
-
+    return zmanim
 
 # ----------------------------
 # HEBREW DATE

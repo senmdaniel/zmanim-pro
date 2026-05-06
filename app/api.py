@@ -3,6 +3,7 @@ from datetime import date, datetime
 import json
 import os
 
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")

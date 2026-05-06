@@ -194,7 +194,7 @@ def get_holiday_info(d):
     return {
         "is_yom_tov": False,
         "is_erev_yom_tov": False,
-        "holiday_key": None,
+        "holiday_key": f" 0 ",
         "holiday_name": None,
         "type": None,
         "day_index": None

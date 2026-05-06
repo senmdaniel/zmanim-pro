@@ -126,23 +126,28 @@ def get_holiday_info(d):
     h = g.to_heb()
 
     yom_tov_days = {
-        (1, 15): ("pesach 1", "Pesach 1de", 1),
-        (1, 16): ("pesach 2", "Pesach", 2),
-        (1, 21): ("pesach 7", "Pesach", 7),
-        (1, 22): ("pesach 8", "Pesach", 8),
+         (1, 14): ("11_erev pesach", "Pesach", 1),
+        (1, 15): ("12_pesach 1", "Pesach 1de", 1),
+        (1, 16): ("13_pesach 2", "Pesach", 1),
+        (1, 21): ("14_pesach 7", "Pesach", 1),
+        (1, 22): ("15_pesach 8", "Pesach", 1),
 
-        (3, 6): ("shavuot 1", "Shavuot", 1),
-        (3, 7): ("shavuot 2", "Shavuot", 2),
+        (3, 5): ("16_erev shavuot", "Shavuot", 1),
+        (3, 6): ("17_shavuot 1", "Shavuot", 1),
+        (3, 7): ("18_shavuot 2", "Shavuot", 1),
 
-        (7, 1): ("rosh_hashanah 1", "Rosh Hashanah", 1),
-        (7, 2): ("rosh_hashanah 2", "Rosh Hashanah", 2),
+        (6, 29): ("1_erev_rosh_hashanah 1", "Rosh Hashanah", 1),
+        (7, 1): ("2_rosh_hashanah 1", "Rosh Hashanah", 1),
+        (7, 2): ("3_rosh_hashanah 2", "Rosh Hashanah", 1),
 
-        (7, 10): ("yom_kippur", "Yom Kippur", 1),
+        (7, 9): ("4_erev_yom_kippur", "Yom Kippur", 1),
+        (7, 10): ("5_yom_kippur", "Yom Kippur", 1),
 
-        (7, 15): ("sukkot 1", "Sukkot", 1),
-        (7, 16): ("sukkot 2", "Sukkot", 2),
-        (7, 22): ("shemini_atzeret", "Shemini Atzeret", 1),
-        (7, 23): ("simchat_torah", "Simchat Torah", 1),
+        (7, 14): ("6_erev_sukkot 1", "Sukkot", 1),
+        (7, 15): ("7_sukkot 1", "Sukkot", 1),
+        (7, 16): ("8_sukkot 2", "Sukkot", 1),
+        (7, 22): ("9_shemini_atzeret", "Shemini Atzeret", 1),
+        (7, 23): ("10_simchat_torah", "Simchat Torah", 1),
     }
 
     key = (h.month, h.day)

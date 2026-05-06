@@ -86,10 +86,16 @@ def parse_date():
 # -----------------------
 # STATUS ENDPOINT
 # -----------------------
-@app.route("/status")
-def status():
+@app.route("/status/<datum>")
+def status(datum):
+
+    try:
+        d = datetime.strptime(datum, "%Y-%m-%d").date()
+    except:
+        return jsonify({"error": "invalid date"}), 400
+
     city = get_city()
-    d, warning = parse_date()
+    warning = "date_from_url"
 
     if d is None:
         return jsonify({"error": warning}), 400

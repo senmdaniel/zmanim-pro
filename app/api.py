@@ -3,6 +3,8 @@ from datetime import date, datetime
 import json
 import os
 
+STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")
+
 from app.zmanim import (
     calculate_zmanim,
     get_holiday_info,
@@ -35,6 +37,25 @@ def get_config(city):
     cfg["city"] = city
     return cfg
 
+# -----------------------
+# HELPERS
+# -----------------------
+
+def save_date(d):
+    with open(STORED_DATE_PATH, "w") as f:
+        json.dump({"date": d.isoformat()}, f)
+
+
+def load_date():
+    if not os.path.exists(STORED_DATE_PATH):
+        return None
+
+    try:
+        with open(STORED_DATE_PATH, "r") as f:
+            data = json.load(f)
+            return datetime.strptime(data["date"], "%Y-%m-%d").date()
+    except:
+        return None
 
 # -----------------------
 # DATE PARSER
@@ -42,17 +63,24 @@ def get_config(city):
 def parse_date():
     raw = request.args.get("date") or request.args.get("datum")
 
-    if not raw:
-        return date.today(), "missing_date_used_today"
+    # 👉 ALS Loxone iets stuurt → opslaan
+    if raw:
+        raw_clean = raw.replace("/", "-")
 
-    raw_clean = raw.replace("/", "-")
+        try:
+            d = datetime.strptime(raw_clean, "%Y-%m-%d").date()
+            save_date(d)
+            return d, "date_updated_from_request"
+        except ValueError:
+            return None, f"invalid_date_format:{raw}"
 
-    try:
-        return datetime.strptime(raw_clean, "%Y-%m-%d").date(), None
-    except ValueError:
-        return None, f"invalid_date_format:{raw}"
+    # 👉 ANDERS → opgeslagen datum gebruiken
+    stored = load_date()
 
+    if stored:
+        return stored, "using_stored_date"
 
+    return None, "no_date_available"
 # -----------------------
 # STATUS ENDPOINT
 # -----------------------

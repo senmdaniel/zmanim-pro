@@ -130,6 +130,52 @@ def status(datum):
         **zmanim
     })
 
+# -----------------------
+# STATUS WITH URL DATE
+# Example:
+# /status/2026/07/01
+# -----------------------
+@app.route("/status/<year>/<month>/<day>")
+def status_with_date(year, month, day):
+
+    city = get_city()
+
+    try:
+        d = datetime.strptime(
+            f"{year}-{month}-{day}",
+            "%Y-%m-%d"
+        ).date()
+
+        save_date(d)
+
+    except ValueError:
+        return jsonify({"error": "invalid_date"}), 400
+
+    config = get_config(city)
+
+    zmanim = calculate_zmanim(config, d)
+    holiday = get_holiday_info(d)
+    hebrew = get_hebrew_date(d)
+
+    return jsonify({
+        "city": city,
+        "date": d.isoformat(),
+
+        "hebrew_date": hebrew["hebrew_date"],
+        "hebrew_day": hebrew["hebrew_day"],
+        "hebrew_month": hebrew["hebrew_month"],
+        "hebrew_year": hebrew["hebrew_year"],
+
+        "warning": "date_from_url",
+
+        "is_yom_tov": holiday.get("is_yom_tov"),
+        "is_erev_yom_tov": holiday.get("is_erev_yom_tov"),
+        "holiday": holiday.get("holiday_name"),
+        "holiday_key": holiday.get("holiday_key"),
+        "type": holiday.get("type"),
+
+        **zmanim
+    })
 
 # -----------------------
 # ZMANIM ENDPOINT

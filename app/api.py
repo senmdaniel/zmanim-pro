@@ -13,17 +13,8 @@ app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DATE_FILE = os.path.join(
-    BASE_DIR,
-    "config",
-    "current_date.json"
-)
-
-SETTINGS_FILE = os.path.join(
-    BASE_DIR,
-    "config",
-    "settings.json"
-)
+DATE_FILE = os.path.join(BASE_DIR, "config", "current_date.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "config", "settings.json")
 
 
 # -----------------------
@@ -32,7 +23,6 @@ SETTINGS_FILE = os.path.join(
 def load_config():
 
     if not os.path.exists(SETTINGS_FILE):
-
         return {
             "city": "Brussels",
             "timezone": "Europe/Brussels",
@@ -53,10 +43,7 @@ def load_config():
 def save_date(d):
 
     with open(DATE_FILE, "w") as f:
-
-        json.dump({
-            "date": d.isoformat()
-        }, f)
+        json.dump({"date": d.isoformat()}, f)
 
 
 # -----------------------
@@ -68,7 +55,6 @@ def load_date():
         return None
 
     try:
-
         with open(DATE_FILE, "r") as f:
             data = json.load(f)
 
@@ -82,26 +68,28 @@ def load_date():
 
 
 # -----------------------
-# PARSE DATE
-#
-# Supported:
-#
-# /api?d=20260112
-# /api?d=2026-01-12
-# /api?d=2026/01/12
-#
-# /api?y=2026&m=1&d=12
+# DATE PARSER (LOXONE PRO)
 # -----------------------
 def parse_date():
 
-    # -----------------------
-    # Separate Y/M/D
-    # -----------------------
-    year = request.args.get("y")
-    month = request.args.get("m")
-    day = request.args.get("d")
+    current = load_date()
 
-    if year and month and day:
+    if current is None:
+        current = datetime.today().date()
+
+    # Loxone inputs
+    y = request.args.get("y")
+    m = request.args.get("m")
+    d = request.args.get("d")
+
+    # -----------------------
+    # PARTIAL UPDATE MODE
+    # -----------------------
+    if y or m or d:
+
+        year = int(y) if y else current.year
+        month = int(m) if m else current.month
+        day = int(d) if d else current.day
 
         return datetime.strptime(
             f"{year}-{month}-{day}",
@@ -109,29 +97,24 @@ def parse_date():
         ).date()
 
     # -----------------------
-    # Single d parameter
+    # FULL DATE MODE
     # -----------------------
-    raw = request.args.get("d")
+    raw = request.args.get("date") or request.args.get("d")
 
     if not raw:
         return None
 
-    raw = raw.strip()
-    raw = raw.replace("/", "-")
+    raw = raw.strip().replace("/", "-")
 
-    # YYYY-MM-DD
-    if "-" in raw:
+    try:
 
-        return datetime.strptime(
-            raw,
-            "%Y-%m-%d"
-        ).date()
+        if "-" in raw:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
 
-    # YYYYMMDD
-    return datetime.strptime(
-        raw,
-        "%Y%m%d"
-    ).date()
+        return datetime.strptime(raw, "%Y%m%d").date()
+
+    except:
+        return None
 
 
 # -----------------------
@@ -140,9 +123,7 @@ def parse_date():
 @app.route("/health")
 def health():
 
-    return jsonify({
-        "status": "ok"
-    })
+    return jsonify({"status": "ok"})
 
 
 # -----------------------
@@ -151,71 +132,32 @@ def health():
 @app.route("/api")
 def api():
 
-    try:
+    d = parse_date()
 
-        d = parse_date()
-
-        # -----------------------
-        # DATE FROM REQUEST
-        # -----------------------
-        if d:
-
-            save_date(d)
-
-            warning = "date_from_request"
-
-        # -----------------------
-        # STORED DATE
-        # -----------------------
-        else:
-
-            d = load_date()
-
-            if d is None:
-
-                return jsonify({
-                    "error": "no stored date"
-                }), 400
-
-            warning = "using_stored_date"
-
-    except:
-
+    # -----------------------
+    # NO DATE
+    # -----------------------
+    if d is None:
         return jsonify({
-            "error": "invalid date format"
+            "error": "no valid date provided"
         }), 400
 
-    # -----------------------
-    # CONFIG
-    # -----------------------
+    save_date(d)
+
     config = load_config()
 
-    # -----------------------
-    # CALCULATIONS
-    # -----------------------
     zmanim = calculate_zmanim(config, d)
-
     hebrew = get_hebrew_date(d)
-
     holiday = get_holiday_info(d)
 
-    # -----------------------
-    # RESPONSE
-    # -----------------------
     return jsonify({
 
         "status": "ok",
 
-        "warning": warning,
-
         "date": d.isoformat(),
 
-        # Hebrew
         "hebrew": hebrew,
-
-        # Holiday
         "holiday": holiday,
 
-        # Zmanim
         **zmanim
     })

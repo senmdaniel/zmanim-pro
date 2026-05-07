@@ -1,24 +1,7 @@
 from flask import Flask, jsonify, request
-from datetime import date, datetime
+from datetime import datetime, date
 import json
 import os
-
-
-app = Flask(__name__)
-
-@app.route("/status")
-def status():
-    return jsonify({
-        "status": "online",
-        "service": "zmanim-pro"
-    })
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")
 
 from app.zmanim import (
     calculate_zmanim,
@@ -28,10 +11,15 @@ from app.zmanim import (
 
 app = Flask(__name__)
 
+# -----------------------
+# PATHS
+# -----------------------
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")
 
 
 # -----------------------
-# CONFIG LOADER
+# CONFIG
 # -----------------------
 def get_city():
     path = os.path.join(BASE_DIR, "config", "settings.json")
@@ -40,9 +28,6 @@ def get_city():
 
 
 def get_config(city):
-    """
-    Bouw config object dat zmanim.py verwacht
-    """
     path = os.path.join(BASE_DIR, "config", "settings.json")
 
     with open(path, "r") as f:
@@ -51,11 +36,11 @@ def get_config(city):
     cfg["city"] = city
     return cfg
 
-# -----------------------
-# HELPERS
-# -----------------------
 
-def save_date(d):
+# -----------------------
+# DATE STORAGE
+# -----------------------
+def save_date(d: date):
     with open(STORED_DATE_PATH, "w") as f:
         json.dump({"date": d.isoformat()}, f)
 
@@ -71,56 +56,38 @@ def load_date():
     except:
         return None
 
-# -----------------------
-# DATE PARSER
-# -----------------------
-def parse_date():
+
+def parse_date_from_request():
     raw = request.args.get("date") or request.args.get("datum")
 
-    # 👉 ALS Loxone iets stuurt → opslaan
-    if raw:
-        raw_clean = raw.replace("/", "-")
+    if not raw:
+        return None, "no_date_in_request"
 
-        try:
-            d = datetime.strptime(raw_clean, "%Y-%m-%d").date()
-            save_date(d)
-            return d, "date_updated_from_request"
-        except ValueError:
-            return None, f"invalid_date_format:{raw}"
-
-    # 👉 ANDERS → opgeslagen datum gebruiken
-    stored = load_date()
-
-    if stored:
-        return stored, "using_stored_date"
-
-    return None, "no_date_available"
-# -----------------------
-# STATUS ENDPOINT
-# -----------------------
-@app.route("/status/<datum>")
-def status(datum):
+    raw_clean = raw.replace("/", "-")
 
     try:
-        d = datetime.strptime(datum, "%Y-%m-%d").date()
-    except:
-        return jsonify({"error": "invalid date"}), 400
+        d = datetime.strptime(raw_clean, "%Y-%m-%d").date()
+        save_date(d)
+        return d, "date_from_request"
+    except ValueError:
+        return None, "invalid_date_format"
 
+
+# -----------------------
+# CORE STATUS LOGIC
+# -----------------------
+def build_response(d: date, warning: str):
     city = get_city()
-    warning = "date_from_url"
-
-    if d is None:
-        return jsonify({"error": warning}), 400
-
     config = get_config(city)
 
     zmanim = calculate_zmanim(config, d)
     holiday = get_holiday_info(d)
     hebrew = get_hebrew_date(d)
 
-    return jsonify({
+    return {
         "city": city,
         "date": d.isoformat(),
+        "warning": warning,
 
         # Hebrew
         "hebrew_date": hebrew["hebrew_date"],
@@ -128,10 +95,7 @@ def status(datum):
         "hebrew_month": hebrew["hebrew_month"],
         "hebrew_year": hebrew["hebrew_year"],
 
-        # Debug
-        "warning": warning,
-
-        # Holiday state
+        # Holiday
         "is_yom_tov": holiday.get("is_yom_tov"),
         "is_erev_yom_tov": holiday.get("is_erev_yom_tov"),
         "holiday": holiday.get("holiday_name"),
@@ -140,65 +104,58 @@ def status(datum):
 
         # Zmanim
         **zmanim
-    })
+    }
+
 
 # -----------------------
-# STATUS WITH URL DATE
-# Example:
-# /status/2026/07/01
+# ROUTES
 # -----------------------
-@app.route("/status/<year>/<month>/<day>")
+
+# HEALTH
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+# SIMPLE STATUS (static)
+@app.route("/status")
+def status():
+    d = load_date()
+
+    if not d:
+        return jsonify({
+            "error": "no stored date"
+        }), 400
+
+    return jsonify(build_response(d, "using_stored_date"))
+
+
+# STATUS WITH DATE (auto store)
+@app.route("/status/<int:year>/<int:month>/<int:day>")
 def status_with_date(year, month, day):
-
-    city = get_city()
-
     try:
-        d = datetime.strptime(
-            f"{year}-{month}-{day}",
-            "%Y-%m-%d"
-        ).date()
-
-        save_date(d)
-
+        d = date(year, month, day)
     except ValueError:
-        return jsonify({"error": "invalid_date"}), 400
+        return jsonify({"error": "invalid date"}), 400
 
-    config = get_config(city)
+    save_date(d)
 
-    zmanim = calculate_zmanim(config, d)
-    holiday = get_holiday_info(d)
-    hebrew = get_hebrew_date(d)
+    return jsonify(build_response(d, "date_from_url"))
 
-    return jsonify({
-        "city": city,
-        "date": d.isoformat(),
 
-        "hebrew_date": hebrew["hebrew_date"],
-        "hebrew_day": hebrew["hebrew_day"],
-        "hebrew_month": hebrew["hebrew_month"],
-        "hebrew_year": hebrew["hebrew_year"],
-
-        "warning": "date_from_url",
-
-        "is_yom_tov": holiday.get("is_yom_tov"),
-        "is_erev_yom_tov": holiday.get("is_erev_yom_tov"),
-        "holiday": holiday.get("holiday_name"),
-        "holiday_key": holiday.get("holiday_key"),
-        "type": holiday.get("type"),
-
-        **zmanim
-    })
-# -----------------------
-# ZMANIM ENDPOINT
-# -----------------------
+# ZMANIM (optional query or stored date)
 @app.route("/zmanim")
 def zmanim_route():
+    d, warning = parse_date_from_request()
+
+    if not d:
+        d = load_date()
+        warning = warning or "using_stored_date"
+
+    if not d:
+        return jsonify({"error": "no date available"}), 400
+
     city = get_city()
-    d, warning = parse_date()
-
-    if d is None:
-        return jsonify({"error": warning}), 400
-
     config = get_config(city)
 
     zmanim = calculate_zmanim(config, d)
@@ -209,14 +166,6 @@ def zmanim_route():
         "warning": warning,
         **zmanim
     })
-
-
-# -----------------------
-# HEALTH CHECK
-# -----------------------
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
 
 
 # -----------------------

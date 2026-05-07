@@ -18,7 +18,7 @@ SETTINGS_FILE = os.path.join(BASE_DIR, "config", "settings.json")
 
 
 # -----------------------
-# LOAD CONFIG
+# CONFIG
 # -----------------------
 def load_config():
 
@@ -38,7 +38,7 @@ def load_config():
 
 
 # -----------------------
-# SAVE DATE
+# DATE SAVE
 # -----------------------
 def save_date(d):
 
@@ -47,7 +47,7 @@ def save_date(d):
 
 
 # -----------------------
-# LOAD DATE
+# DATE LOAD
 # -----------------------
 def load_date():
 
@@ -58,88 +58,88 @@ def load_date():
         with open(DATE_FILE, "r") as f:
             data = json.load(f)
 
-        return datetime.strptime(
-            data["date"],
-            "%Y-%m-%d"
-        ).date()
+        return datetime.strptime(data["date"], "%Y-%m-%d").date()
 
     except:
         return None
 
 
 # -----------------------
-# DATE PARSER (LOXONE PRO)
+# CLEAN Loxone INPUT
+# -----------------------
+def clean(v):
+
+    if v in [None, "", "None", "null"]:
+        return None
+
+    return v
+
+
+# -----------------------
+# PARSE DATE (LOXONE SAFE)
 # -----------------------
 def parse_date():
 
-    current = load_date()
+    current = load_date() or datetime.today().date()
 
-    if current is None:
-        current = datetime.today().date()
-
-    # Loxone inputs
-    y = request.args.get("y")
-    m = request.args.get("m")
-    d = request.args.get("d")
+    # Loxone inputs (GET or POST safe)
+    y = clean(request.values.get("y"))
+    m = clean(request.values.get("m"))
+    d = clean(request.values.get("d"))
+    raw = clean(request.values.get("date"))
 
     # -----------------------
-    # PARTIAL UPDATE MODE
+    # FULL DATE MODE
     # -----------------------
-    if y or m or d:
+    if raw:
+
+        raw = raw.replace("/", "-")
+
+        try:
+            if "-" in raw:
+                return datetime.strptime(raw, "%Y-%m-%d").date()
+
+            return datetime.strptime(raw, "%Y%m%d").date()
+
+        except:
+            return None
+
+    # -----------------------
+    # PARTIAL MODE (LOXONE BEST)
+    # -----------------------
+    try:
 
         year = int(y) if y else current.year
         month = int(m) if m else current.month
         day = int(d) if d else current.day
 
-        return datetime.strptime(
-            f"{year}-{month}-{day}",
-            "%Y-%m-%d"
-        ).date()
-
-    # -----------------------
-    # FULL DATE MODE
-    # -----------------------
-    raw = request.args.get("date") or request.args.get("d")
-
-    if not raw:
-        return None
-
-    raw = raw.strip().replace("/", "-")
-
-    try:
-
-        if "-" in raw:
-            return datetime.strptime(raw, "%Y-%m-%d").date()
-
-        return datetime.strptime(raw, "%Y%m%d").date()
+        return datetime(year, month, day).date()
 
     except:
         return None
 
 
 # -----------------------
-# HEALTH
+# HEALTH CHECK
 # -----------------------
-@app.route("/health")
+@app.route("/health", methods=["GET"])
 def health():
 
     return jsonify({"status": "ok"})
 
 
 # -----------------------
-# API
+# MAIN API
 # -----------------------
-@app.route("/api")
+@app.route("/api", methods=["GET", "POST"])
 def api():
 
     d = parse_date()
 
-    # -----------------------
-    # NO DATE
-    # -----------------------
     if d is None:
         return jsonify({
-            "error": "no valid date provided"
+            "status": "error",
+            "error": "invalid or missing date"
         }), 400
 
     save_date(d)

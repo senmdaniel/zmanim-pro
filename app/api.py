@@ -4,6 +4,20 @@ import json
 import os
 
 
+from flask import Flask, jsonify
+
+app = Flask(__name__)
+
+@app.route("/status")
+def status():
+    return jsonify({
+        "status": "online",
+        "service": "zmanim-pro"
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")

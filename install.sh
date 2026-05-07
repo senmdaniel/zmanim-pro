@@ -38,7 +38,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=$APP_DIR
-ExecStart=$APP_DIR/venv/bin/python -m app.main
+ExecStart=$APP_DIR/venv/bin/python run.py
 Restart=always
 RestartSec=3
 User=$USER

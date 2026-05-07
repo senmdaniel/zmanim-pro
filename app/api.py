@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Flask, jsonify, request
 from datetime import datetime, date
 import json
 import os
@@ -9,7 +9,7 @@ from app.zmanim import (
     get_hebrew_date
 )
 
-api_bp = Blueprint("api", __name__)
+app = Flask(__name__)
 
 # -----------------------
 # PATHS
@@ -19,7 +19,7 @@ STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")
 
 
 # -----------------------
-# STORAGE
+# DATE STORAGE
 # -----------------------
 def save_date(d: date):
     with open(STORED_DATE_PATH, "w") as f:
@@ -57,7 +57,7 @@ def get_config(city):
 
 
 # -----------------------
-# CORE RESPONSE BUILDER
+# BUILD RESPONSE
 # -----------------------
 def build_response(d: date):
     city = get_city()
@@ -81,44 +81,17 @@ def build_response(d: date):
 
 
 # -----------------------
-# 1. MAIN API (LOXONE SAFE)
+# HEALTH
 # -----------------------
-@api_bp.route("/api")
-def api():
-    raw = request.args.get("d") or request.args.get("date")
-
-    # 1) set date if provided
-    if raw:
-        try:
-            if "-" in raw:
-                d = datetime.strptime(raw, "%Y-%m-%d").date()
-            else:
-                d = datetime.strptime(raw, "%Y%m%d").date()
-
-            save_date(d)
-
-        except ValueError:
-            return jsonify({
-                "status": "error",
-                "message": "invalid date format (use YYYYMMDD or YYYY-MM-DD)"
-            }), 400
-
-    # 2) fallback stored date
-    d = load_date()
-
-    if not d:
-        return jsonify({
-            "status": "error",
-            "message": "no date set"
-        }), 400
-
-    return jsonify(build_response(d))
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
 
 
 # -----------------------
-# 2. SET DATE ONLY (OPTIONAL BUT HANDY FOR LOXONE)
+# SET DATE (LOXONE)
 # -----------------------
-@api_bp.route("/setdate")
+@app.route("/setdate")
 def setdate():
     raw = request.args.get("d") or request.args.get("date")
 
@@ -143,8 +116,27 @@ def setdate():
 
 
 # -----------------------
-# 3. HEALTH CHECK
+# MAIN API (LOXONE)
 # -----------------------
-@api_bp.route("/health")
-def health():
-    return jsonify({"status": "ok"})
+@app.route("/api")
+def api():
+    raw = request.args.get("d") or request.args.get("date")
+
+    if raw:
+        try:
+            if "-" in raw:
+                d = datetime.strptime(raw, "%Y-%m-%d").date()
+            else:
+                d = datetime.strptime(raw, "%Y%m%d").date()
+
+            save_date(d)
+
+        except ValueError:
+            return jsonify({"status": "error", "message": "invalid date"}), 400
+
+    d = load_date()
+
+    if not d:
+        return jsonify({"status": "error", "message": "no date set"}), 400
+
+    return jsonify(build_response(d))

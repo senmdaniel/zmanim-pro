@@ -12,8 +12,18 @@ from app.zmanim import (
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATE_FILE = os.path.join(BASE_DIR, "config", "current_date.json")
-SETTINGS_FILE = os.path.join(BASE_DIR, "config", "settings.json")
+
+DATE_FILE = os.path.join(
+    BASE_DIR,
+    "config",
+    "current_date.json"
+)
+
+SETTINGS_FILE = os.path.join(
+    BASE_DIR,
+    "config",
+    "settings.json"
+)
 
 
 # -----------------------
@@ -22,6 +32,7 @@ SETTINGS_FILE = os.path.join(BASE_DIR, "config", "settings.json")
 def load_config():
 
     if not os.path.exists(SETTINGS_FILE):
+
         return {
             "city": "Brussels",
             "timezone": "Europe/Brussels",
@@ -42,6 +53,7 @@ def load_config():
 def save_date(d):
 
     with open(DATE_FILE, "w") as f:
+
         json.dump({
             "date": d.isoformat()
         }, f)
@@ -56,6 +68,7 @@ def load_date():
         return None
 
     try:
+
         with open(DATE_FILE, "r") as f:
             data = json.load(f)
 
@@ -70,12 +83,38 @@ def load_date():
 
 # -----------------------
 # PARSE DATE
-# Supports:
-# 20260112
-# 2026-01-12
-# 2026/01/12
+#
+# Supported:
+#
+# /api?d=20260112
+# /api?d=2026-01-12
+# /api?d=2026/01/12
+#
+# /api?y=2026&m=1&d=12
 # -----------------------
-def parse_date(raw):
+def parse_date():
+
+    # -----------------------
+    # Separate Y/M/D
+    # -----------------------
+    year = request.args.get("y")
+    month = request.args.get("m")
+    day = request.args.get("d")
+
+    if year and month and day:
+
+        return datetime.strptime(
+            f"{year}-{month}-{day}",
+            "%Y-%m-%d"
+        ).date()
+
+    # -----------------------
+    # Single d parameter
+    # -----------------------
+    raw = request.args.get("d")
+
+    if not raw:
+        return None
 
     raw = raw.strip()
     raw = raw.replace("/", "-")
@@ -108,52 +147,43 @@ def health():
 
 # -----------------------
 # API
-#
-# SET DATE:
-# /api?d=20260112
-# /api?d=2026-01-12
-# /api?d=2026/01/12
-#
-# GET STORED DATE:
-# /api
 # -----------------------
 @app.route("/api")
 def api():
 
-    raw = request.args.get("d")
+    try:
 
-    # -----------------------
-    # DATE FROM URL
-    # -----------------------
-    if raw:
+        d = parse_date()
 
-        try:
+        # -----------------------
+        # DATE FROM REQUEST
+        # -----------------------
+        if d:
 
-            d = parse_date(raw)
-
-            # save for later /api calls
             save_date(d)
 
             warning = "date_from_request"
 
-        except:
-            return jsonify({
-                "error": "invalid date format"
-            }), 400
+        # -----------------------
+        # STORED DATE
+        # -----------------------
+        else:
 
-    # -----------------------
-    # STORED DATE
-    # -----------------------
-    else:
+            d = load_date()
 
-        d = load_date()
+            if d is None:
 
-        if d is None:
-            return jsonify({
-                "error": "no stored date"
-            }), 400
+                return jsonify({
+                    "error": "no stored date"
+                }), 400
 
-        warning = "using_stored_date"
+            warning = "using_stored_date"
+
+    except:
+
+        return jsonify({
+            "error": "invalid date format"
+        }), 400
 
     # -----------------------
     # CONFIG
@@ -164,7 +194,9 @@ def api():
     # CALCULATIONS
     # -----------------------
     zmanim = calculate_zmanim(config, d)
+
     hebrew = get_hebrew_date(d)
+
     holiday = get_holiday_info(d)
 
     # -----------------------

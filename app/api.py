@@ -20,8 +20,17 @@ def api():
 
     raw = request.args.get("d")
 
-    if not raw:
-        return jsonify({"error": "missing date (d=YYYYMMDD)"}), 400
+# -----------------------
+# STORED DATE
+# -----------------------
+else:
+
+    d = load_date()
+
+    if d is None:
+        return jsonify({
+            "error": "no stored date"
+        }), 400
 
     try:
         raw = raw.replace("-", "")

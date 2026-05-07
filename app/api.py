@@ -13,6 +13,27 @@ app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATE_FILE = os.path.join(BASE_DIR, "config", "current_date.json")
+SETTINGS_FILE = os.path.join(BASE_DIR, "config", "settings.json")
+
+
+# -----------------------
+# LOAD CONFIG
+# -----------------------
+def load_config():
+
+    if not os.path.exists(SETTINGS_FILE):
+        return {
+            "city": "Brussels",
+            "timezone": "Europe/Brussels",
+            "latitude": 50.85,
+            "longitude": 4.35,
+            "alos": 72,
+            "tzeis": 40,
+            "candle_lighting": 18
+        }
+
+    with open(SETTINGS_FILE, "r") as f:
+        return json.load(f)
 
 
 # -----------------------
@@ -48,6 +69,33 @@ def load_date():
 
 
 # -----------------------
+# PARSE DATE
+# Supports:
+# 20260112
+# 2026-01-12
+# 2026/01/12
+# -----------------------
+def parse_date(raw):
+
+    raw = raw.strip()
+    raw = raw.replace("/", "-")
+
+    # YYYY-MM-DD
+    if "-" in raw:
+
+        return datetime.strptime(
+            raw,
+            "%Y-%m-%d"
+        ).date()
+
+    # YYYYMMDD
+    return datetime.strptime(
+        raw,
+        "%Y%m%d"
+    ).date()
+
+
+# -----------------------
 # HEALTH
 # -----------------------
 @app.route("/health")
@@ -60,7 +108,13 @@ def health():
 
 # -----------------------
 # API
-# /api?d=20260101
+#
+# SET DATE:
+# /api?d=20260112
+# /api?d=2026-01-12
+# /api?d=2026/01/12
+#
+# GET STORED DATE:
 # /api
 # -----------------------
 @app.route("/api")
@@ -74,13 +128,13 @@ def api():
     if raw:
 
         try:
-            raw = raw.replace("-", "")
-            d = datetime.strptime(
-                raw,
-                "%Y%m%d"
-            ).date()
 
+            d = parse_date(raw)
+
+            # save for later /api calls
             save_date(d)
+
+            warning = "date_from_request"
 
         except:
             return jsonify({
@@ -99,18 +153,12 @@ def api():
                 "error": "no stored date"
             }), 400
 
+        warning = "using_stored_date"
+
     # -----------------------
     # CONFIG
     # -----------------------
-    config = {
-        "city": "Brussels",
-        "timezone": "Europe/Brussels",
-        "latitude": 50.85,
-        "longitude": 4.35,
-        "alos": 72,
-        "tzeis": 40,
-        "candle_lighting": 18
-    }
+    config = load_config()
 
     # -----------------------
     # CALCULATIONS
@@ -123,8 +171,19 @@ def api():
     # RESPONSE
     # -----------------------
     return jsonify({
+
+        "status": "ok",
+
+        "warning": warning,
+
         "date": d.isoformat(),
+
+        # Hebrew
         "hebrew": hebrew,
+
+        # Holiday
         "holiday": holiday,
+
+        # Zmanim
         **zmanim
     })

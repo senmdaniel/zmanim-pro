@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Blueprint, jsonify, request
 from datetime import datetime, date
 import json
 import os
@@ -9,7 +9,7 @@ from app.zmanim import (
     get_hebrew_date
 )
 
-app = Flask(__name__)
+api_bp = Blueprint("api", __name__)
 
 # -----------------------
 # PATHS
@@ -19,26 +19,7 @@ STORED_DATE_PATH = os.path.join(BASE_DIR, "config", "current_date.json")
 
 
 # -----------------------
-# CONFIG
-# -----------------------
-def get_city():
-    path = os.path.join(BASE_DIR, "config", "settings.json")
-    with open(path, "r") as f:
-        return json.load(f)["city"]
-
-
-def get_config(city):
-    path = os.path.join(BASE_DIR, "config", "settings.json")
-
-    with open(path, "r") as f:
-        cfg = json.load(f)
-
-    cfg["city"] = city
-    return cfg
-
-
-# -----------------------
-# DATE STORAGE
+# STORAGE
 # -----------------------
 def save_date(d: date):
     with open(STORED_DATE_PATH, "w") as f:
@@ -57,26 +38,28 @@ def load_date():
         return None
 
 
-def parse_date_from_request():
-    raw = request.args.get("date") or request.args.get("datum")
+# -----------------------
+# CONFIG
+# -----------------------
+def get_city():
+    path = os.path.join(BASE_DIR, "config", "settings.json")
+    with open(path, "r") as f:
+        return json.load(f)["city"]
 
-    if not raw:
-        return None, "no_date_in_request"
 
-    raw_clean = raw.replace("/", "-")
+def get_config(city):
+    path = os.path.join(BASE_DIR, "config", "settings.json")
+    with open(path, "r") as f:
+        cfg = json.load(f)
 
-    try:
-        d = datetime.strptime(raw_clean, "%Y-%m-%d").date()
-        save_date(d)
-        return d, "date_from_request"
-    except ValueError:
-        return None, "invalid_date_format"
+    cfg["city"] = city
+    return cfg
 
 
 # -----------------------
-# CORE STATUS LOGIC
+# CORE RESPONSE BUILDER
 # -----------------------
-def build_response(d: date, warning: str):
+def build_response(d: date):
     city = get_city()
     config = get_config(city)
 
@@ -85,91 +68,83 @@ def build_response(d: date, warning: str):
     hebrew = get_hebrew_date(d)
 
     return {
+        "status": "ok",
         "city": city,
         "date": d.isoformat(),
-        "warning": warning,
 
-        # Hebrew
         "hebrew_date": hebrew["hebrew_date"],
-        "hebrew_day": hebrew["hebrew_day"],
-        "hebrew_month": hebrew["hebrew_month"],
-        "hebrew_year": hebrew["hebrew_year"],
-
-        # Holiday
-        "is_yom_tov": holiday.get("is_yom_tov"),
-        "is_erev_yom_tov": holiday.get("is_erev_yom_tov"),
         "holiday": holiday.get("holiday_name"),
-        "holiday_key": holiday.get("holiday_key"),
-        "type": holiday.get("type"),
+        "is_yom_tov": holiday.get("is_yom_tov"),
 
-        # Zmanim
         **zmanim
     }
 
 
 # -----------------------
-# ROUTES
+# 1. MAIN API (LOXONE SAFE)
 # -----------------------
+@api_bp.route("/api")
+def api():
+    raw = request.args.get("d") or request.args.get("date")
 
-# HEALTH
-@app.route("/health")
-def health():
-    return jsonify({"status": "ok"})
+    # 1) set date if provided
+    if raw:
+        try:
+            if "-" in raw:
+                d = datetime.strptime(raw, "%Y-%m-%d").date()
+            else:
+                d = datetime.strptime(raw, "%Y%m%d").date()
 
+            save_date(d)
 
-# SIMPLE STATUS (static)
-@app.route("/status")
-def status():
+        except ValueError:
+            return jsonify({
+                "status": "error",
+                "message": "invalid date format (use YYYYMMDD or YYYY-MM-DD)"
+            }), 400
+
+    # 2) fallback stored date
     d = load_date()
 
     if not d:
         return jsonify({
-            "error": "no stored date"
+            "status": "error",
+            "message": "no date set"
         }), 400
 
-    return jsonify(build_response(d, "using_stored_date"))
+    return jsonify(build_response(d))
 
 
-# STATUS WITH DATE (auto store)
-@app.route("/status/<int:year>/<int:month>/<int:day>")
-def status_with_date(year, month, day):
+# -----------------------
+# 2. SET DATE ONLY (OPTIONAL BUT HANDY FOR LOXONE)
+# -----------------------
+@api_bp.route("/setdate")
+def setdate():
+    raw = request.args.get("d") or request.args.get("date")
+
+    if not raw:
+        return jsonify({"status": "error", "message": "missing date"}), 400
+
     try:
-        d = date(year, month, day)
+        if "-" in raw:
+            d = datetime.strptime(raw, "%Y-%m-%d").date()
+        else:
+            d = datetime.strptime(raw, "%Y%m%d").date()
+
+        save_date(d)
+
+        return jsonify({
+            "status": "ok",
+            "date": d.isoformat()
+        })
+
     except ValueError:
-        return jsonify({"error": "invalid date"}), 400
-
-    save_date(d)
-
-    return jsonify(build_response(d, "date_from_url"))
-
-
-# ZMANIM (optional query or stored date)
-@app.route("/zmanim")
-def zmanim_route():
-    d, warning = parse_date_from_request()
-
-    if not d:
-        d = load_date()
-        warning = warning or "using_stored_date"
-
-    if not d:
-        return jsonify({"error": "no date available"}), 400
-
-    city = get_city()
-    config = get_config(city)
-
-    zmanim = calculate_zmanim(config, d)
-
-    return jsonify({
-        "city": city,
-        "date": d.isoformat(),
-        "warning": warning,
-        **zmanim
-    })
+        return jsonify({"status": "error", "message": "invalid date"}), 400
 
 
 # -----------------------
-# RUN
+# 3. HEALTH CHECK
 # -----------------------
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+@api_bp.route("/health")
+def health():
+    return jsonify({"status": "ok"})

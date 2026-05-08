@@ -19,7 +19,9 @@ curl -s https://raw.githubusercontent.com/senmdaniel/zmanim-pro/main/install.sh 
 
 API
 
-/status → info over actieve stad en feestdagen
+http://192.168.178.114:5000/api?y=2026&m=3&d=12
+
+status → info over actieve stad en feestdagen
 
 /zmanim → halachische tijden en Jom Tov info
 

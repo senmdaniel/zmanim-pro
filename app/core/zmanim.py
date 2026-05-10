@@ -111,7 +111,7 @@ def calculate_zmanim(config, date_obj):
         },
 
         "halacha": {
-            "chatzos": fmt(chazos),
+            "chatzos": fmt(chatzos),
             "plag_hamincha": fmt(plag_hamincha),
 
             "sof_zman_krias_shema": {

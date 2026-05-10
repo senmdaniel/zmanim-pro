@@ -1,160 +1,101 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 import ntplib
+import requests
 import json
 import os
 
+CACHE_FILE = os.path.join("config", "date_now.json")
 
-DATE_FILE = os.path.join("config", "date_now.json")
+# 👉 fallback URL (bijvoorbeeld jouw eigen server)
+DATE_URL = "https://your-domain.com/api/date"
 
 
 # =========================================================
-# INTERNET (NTP)
+# 1. NTP (best effort)
 # =========================================================
-def fetch_internet_date():
-
+def fetch_ntp_date():
     try:
-
         client = ntplib.NTPClient()
-
-        response = client.request(
-            "pool.ntp.org",
-            version=3,
-            timeout=2
-        )
-
-        return datetime.utcfromtimestamp(
-            response.tx_time
-        ).date()
-
+        response = client.request("pool.ntp.org", version=3, timeout=2)
+        return datetime.utcfromtimestamp(response.tx_time).date()
     except:
-
         return None
 
 
 # =========================================================
-# SAVE CACHE
+# 2. HTTP URL fallback
 # =========================================================
-def save_cached_date(date_obj):
+def fetch_http_date():
+    try:
+        r = requests.get(DATE_URL, timeout=2)
+        if r.status_code != 200:
+            return None
 
-    os.makedirs(
-        os.path.dirname(DATE_FILE),
-        exist_ok=True
-    )
+        data = r.json()
 
-    with open(DATE_FILE, "w") as f:
+        # verwacht: {"date": "2026-05-10"}
+        return datetime.strptime(data["date"], "%Y-%m-%d").date()
 
+    except:
+        return None
+
+
+# =========================================================
+# 3. CACHE
+# =========================================================
+def save_cache(date_obj):
+    os.makedirs(os.path.dirname(CACHE_FILE), exist_ok=True)
+
+    with open(CACHE_FILE, "w") as f:
         json.dump({
-
             "date": date_obj.isoformat(),
-
             "saved_at": datetime.utcnow().isoformat()
-
         }, f)
 
 
-# =========================================================
-# LOAD CACHE
-# =========================================================
-def load_cached_date():
-
-    if not os.path.exists(DATE_FILE):
+def load_cache():
+    if not os.path.exists(CACHE_FILE):
         return None
 
     try:
-
-        with open(DATE_FILE, "r") as f:
+        with open(CACHE_FILE, "r") as f:
             data = json.load(f)
 
-        cached_date = datetime.strptime(
-            data["date"],
-            "%Y-%m-%d"
-        ).date()
-
-        saved_at = datetime.fromisoformat(
-            data["saved_at"]
-        )
-
-        # hoeveel dagen oud?
-        delta_days = (
-            datetime.utcnow().date() -
-            saved_at.date()
-        ).days
-
-        # auto-forward indien nodig
-        corrected_date = cached_date + timedelta(
-            days=delta_days
-        )
-
-        return corrected_date
+        return datetime.strptime(data["date"], "%Y-%m-%d").date()
 
     except:
-
         return None
 
 
 # =========================================================
-# LOXONE INPUT
+# 4. MAIN LOGIC
 # =========================================================
-def get_loxone_date(request):
+def get_current_date(request=None):
 
-    y = request.values.get("y")
-    m = request.values.get("m")
-    d = request.values.get("d")
+    # -------------------------------------------------
+    # 1. NTP (primary)
+    # -------------------------------------------------
+    ntp_date = fetch_ntp_date()
+    if ntp_date:
+        save_cache(ntp_date)
+        return ntp_date
 
-    if y and m and d:
+    # -------------------------------------------------
+    # 2. HTTP fallback URL
+    # -------------------------------------------------
+    http_date = fetch_http_date()
+    if http_date:
+        save_cache(http_date)
+        return http_date
 
-        try:
-
-            return datetime(
-                int(y),
-                int(m),
-                int(d)
-            ).date()
-
-        except:
-
-            pass
-
-    return None
-
-
-# =========================================================
-# MAIN ENGINE
-# =========================================================
-def get_current_date(request):
-
-    # -----------------------------------------------------
-    # 1. INTERNET
-    # -----------------------------------------------------
-
-    internet_date = fetch_internet_date()
-
-    if internet_date:
-
-        save_cached_date(internet_date)
-
-        return internet_date
-
-    # -----------------------------------------------------
-    # 2. CACHE (AUTO ADVANCING)
-    # -----------------------------------------------------
-
-    cached = load_cached_date()
-
+    # -------------------------------------------------
+    # 3. CACHE fallback
+    # -------------------------------------------------
+    cached = load_cache()
     if cached:
         return cached
 
-    # -----------------------------------------------------
-    # 3. LOXONE
-    # -----------------------------------------------------
-
-    loxone_date = get_loxone_date(request)
-
-    if loxone_date:
-        return loxone_date
-
-    # -----------------------------------------------------
-    # 4. SYSTEM CLOCK
-    # -----------------------------------------------------
-
+    # -------------------------------------------------
+    # 4. SYSTEM CLOCK (last resort)
+    # -------------------------------------------------
     return datetime.utcnow().date()

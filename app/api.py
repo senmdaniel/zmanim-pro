@@ -2,34 +2,77 @@ from flask import Flask, jsonify, request
 
 from app.core.date_provider import get_current_date
 from app.core.zmanim import calculate_zmanim, get_hebrew_date
-from app.core.calendar import get_event
-from app.core.config import load_config   # we maken dit klein helper filetje
+from app.data.events import get_event
+from app.core.config import load_config
 
 app = Flask(__name__)
 
 
-@app.route("/health")
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+@app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    return jsonify({
+        "status": "ok"
+    })
 
 
+# =========================================================
+# MAIN API ENDPOINT
+# =========================================================
 @app.route("/api", methods=["GET"])
 def api():
 
     try:
-        d = get_current_date(request)
+        # -------------------------------------------------
+        # 1. DATE (single source of truth)
+        # -------------------------------------------------
+        date = get_current_date(request)
+
+        # -------------------------------------------------
+        # 2. CONFIG
+        # -------------------------------------------------
         config = load_config()
 
-        hebrew = get_hebrew_date(d)
-        zmanim = calculate_zmanim(config, d)
-        event = get_event(hebrew["hebrew_month"], hebrew["hebrew_day"])
+        # -------------------------------------------------
+        # 3. HEBREW DATE
+        # -------------------------------------------------
+        hebrew = get_hebrew_date(date)
 
+        # -------------------------------------------------
+        # 4. YOMIM TOVIM / EVENTS
+        # -------------------------------------------------
+        event = get_event(
+            hebrew["hebrew_month"],
+            hebrew["hebrew_day"]
+        )
+
+        # -------------------------------------------------
+        # 5. ZMANIM
+        # -------------------------------------------------
+        zmanim = calculate_zmanim(config, date)
+
+        # -------------------------------------------------
+        # 6. RESPONSE
+        # -------------------------------------------------
         return jsonify({
             "status": "ok",
-            "date": d.isoformat(),
+
+            "date": date.isoformat(),
+
             "hebrew": hebrew,
+
             "event": event,
-            "zmanim": zmanim
+
+            "zmanim": zmanim,
+
+            "location": {
+                "city": config.get("city"),
+                "timezone": config.get("timezone"),
+                "latitude": config.get("latitude"),
+                "longitude": config.get("longitude")
+            }
         })
 
     except Exception as e:

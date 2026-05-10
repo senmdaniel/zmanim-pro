@@ -1,18 +1,15 @@
-from datetime import datetime, timedelta
-import pytz
-from flask import Flask, request, jsonify
+from datetime import timedelta
 from astral import LocationInfo
 from astral.sun import sun
-
-
-app = Flask(__name__)
-
-UTC = pytz.UTC
+import pytz
 
 
 # =========================================================
 # HELPERS
 # =========================================================
+
+UTC = pytz.UTC
+
 
 def fmt(dt):
     return dt.strftime("%H:%M")
@@ -31,10 +28,14 @@ def after(dt, minutes):
 
 
 # =========================================================
-# CORE CALCULATION ENGINE
+# MAIN FUNCTION (IMPORTANT: MATCHS api.py)
 # =========================================================
 
-def calculate_all_times(date_obj, config):
+def calculate_zmanim(config, date_obj):
+    """
+    Main entry point used by api.py
+    MUST stay stable (contract function)
+    """
 
     tz = pytz.timezone(config.get("timezone", "UTC"))
 
@@ -46,22 +47,25 @@ def calculate_all_times(date_obj, config):
         longitude=float(config.get("longitude", 0))
     )
 
+    # =====================================================
+    # SUN DATA
+    # =====================================================
     s = sun(location.observer, date=date_obj, tzinfo=tz)
 
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
     # =====================================================
-    # HALACHIC CORE
+    # CORE HALACHIC CALCULATIONS
     # =====================================================
-
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
 
-    netz = sunrise
+    netz_hachama = sunrise
     chatzos = sunrise + (day_length / 2)
-    plag = sunset - (1.25 * shaah_zmanit)
+    plag_hamincha = sunset - (1.25 * shaah_zmanit)
 
+    # Sof zmanim (2 opinions)
     sof_shema_gra = sunrise + (3 * shaah_zmanit)
     sof_shema_ma = sunrise + (2.4 * shaah_zmanit)
 
@@ -69,55 +73,46 @@ def calculate_all_times(date_obj, config):
     sof_tefila_ma = sof_shema_ma
 
     # =====================================================
-    # SHABBAT OPTIONS (NO DECISION MAKING)
+    # SHABBAT OPTIONS (NO DECISION LOGIC)
     # =====================================================
-
     candle_options = [18, 20, 30, 40]
     tzeis_options = [42, 50, 72, 90]
 
-    candle_list = []
-    tzeis_list = []
-
-    for m in candle_options:
-        t = before(sunset, m)
-        candle_list.append({
+    candle_list = [
+        {
             "id": f"c{m}",
             "label": f"{m} min before sunset",
-            "time": fmt(t),
-            "ts": ts(t)
-        })
+            "time": fmt(before(sunset, m)),
+            "ts": ts(before(sunset, m))
+        }
+        for m in candle_options
+    ]
 
-    for m in tzeis_options:
-        t = after(sunset, m)
-        tzeis_list.append({
+    tzeis_list = [
+        {
             "id": f"t{m}",
             "label": f"{m} min after sunset",
-            "time": fmt(t),
-            "ts": ts(t)
-        })
+            "time": fmt(after(sunset, m)),
+            "ts": ts(after(sunset, m))
+        }
+        for m in tzeis_options
+    ]
 
     # =====================================================
-    # RESPONSE (FULL DATA ONLY)
+    # OUTPUT (STABLE CONTRACT FOR api.py)
     # =====================================================
-
     return {
-        "meta": {
-            "city": config.get("city"),
-            "date": date_obj.isoformat(),
-            "timezone": config.get("timezone")
-        },
-
         "astronomy": {
             "sunrise": fmt(sunrise),
             "sunset": fmt(sunset),
-            "netz_hachama": fmt(netz),
+            "netz_hachama": fmt(netz_hachama),
             "sunrise_ts": ts(sunrise),
             "sunset_ts": ts(sunset)
         },
 
         "halacha": {
-            "chatzos": fmt(chatzos),
-            "plag_hamincha": fmt(plag),
+            "chatzos": fmt(chazos),
+            "plag_hamincha": fmt(plag_hamincha),
 
             "sof_zman_krias_shema": {
                 "gra": fmt(sof_shema_gra),
@@ -135,34 +130,3 @@ def calculate_all_times(date_obj, config):
             "tzeis": tzeis_list
         }
     }
-
-
-# =========================================================
-# API ENDPOINT
-# =========================================================
-
-@app.route("/zmanim", methods=["GET"])
-def zmanim():
-
-    y = int(request.args.get("y"))
-    m = int(request.args.get("m"))
-    d = int(request.args.get("d"))
-
-    date_obj = datetime(y, m, d)
-
-    config = {
-        "city": request.args.get("city", "Brussels"),
-        "timezone": request.args.get("tz", "Europe/Brussels"),
-        "latitude": request.args.get("lat", 50.85),
-        "longitude": request.args.get("lon", 4.35)
-    }
-
-    return jsonify(calculate_all_times(date_obj, config))
-
-
-# =========================================================
-# RUN SERVER
-# =========================================================
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)

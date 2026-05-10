@@ -159,8 +159,8 @@ def calculate_zmanim(config, date_obj):
             "chatzos": zman_object(chatzos),
 
             "plag_hamincha": {
-                "gra": zman_object(plag_gra),
-                "magen_avraham": zman_object(plag_ma)
+                "pla_gra": zman_object(plag_gra),
+                "plag_magen_avraham": zman_object(plag_ma)
             },
 
             "sof_zman_krias_shema": {

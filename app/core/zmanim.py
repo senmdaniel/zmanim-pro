@@ -1,15 +1,18 @@
 from datetime import datetime, timedelta
 import pytz
+from flask import Flask, request, jsonify
 from astral import LocationInfo
 from astral.sun import sun
+
+
+app = Flask(__name__)
+
+UTC = pytz.UTC
 
 
 # =========================================================
 # HELPERS
 # =========================================================
-
-UTC = pytz.UTC
-
 
 def fmt(dt):
     return dt.strftime("%H:%M")
@@ -28,32 +31,11 @@ def after(dt, minutes):
 
 
 # =========================================================
-# MINHAGIM
+# CORE CALCULATION ENGINE
 # =========================================================
 
-MINHAGIM = {
-    "standard_18": {"candle": 18, "tzeis": 42},
-    "standard_20": {"candle": 20, "tzeis": 42},
-    "standard_30": {"candle": 30, "tzeis": 50},
-    "standard_40": {"candle": 40, "tzeis": 50},
-    "rabbeinu_tam": {"candle": 18, "tzeis": 72},
-    "chazon_ish": {"candle": 30, "tzeis": 90},
-}
+def calculate_all_times(date_obj, config):
 
-
-START_OPTIONS = [18, 20, 30, 40]
-END_OPTIONS = [42, 50, 72, 90]
-
-
-# =========================================================
-# CORE ENGINE
-# =========================================================
-
-def calculate_zmanim(config, date_obj):
-
-    # -------------------------
-    # LOCATION / TIMEZONE
-    # -------------------------
     tz = pytz.timezone(config.get("timezone", "UTC"))
 
     location = LocationInfo(
@@ -64,32 +46,21 @@ def calculate_zmanim(config, date_obj):
         longitude=float(config.get("longitude", 0))
     )
 
-    # -------------------------
-    # SUN DATA
-    # -------------------------
     s = sun(location.observer, date=date_obj, tzinfo=tz)
 
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
     # =====================================================
-    # HALACHIC BASE
+    # HALACHIC CORE
     # =====================================================
 
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
 
+    netz = sunrise
     chatzos = sunrise + (day_length / 2)
-
-    # Plag HaMincha (Gra method)
     plag = sunset - (1.25 * shaah_zmanit)
-
-    # Netz HaChama
-    netz_hachama = sunrise
-
-    # =====================================================
-    # SOF ZMANIM (GRA + M.A.)
-    # =====================================================
 
     sof_shema_gra = sunrise + (3 * shaah_zmanit)
     sof_shema_ma = sunrise + (2.4 * shaah_zmanit)
@@ -98,45 +69,35 @@ def calculate_zmanim(config, date_obj):
     sof_tefila_ma = sof_shema_ma
 
     # =====================================================
-    # MINHAG
+    # SHABBAT OPTIONS (NO DECISION MAKING)
     # =====================================================
 
-    minhag_key = config.get("minhag", "standard_18")
-    minhag = MINHAGIM.get(minhag_key, MINHAGIM["standard_18"])
+    candle_options = [18, 20, 30, 40]
+    tzeis_options = [42, 50, 72, 90]
 
-    candle_lighting = before(sunset, minhag["candle"])
-    tzeis = after(sunset, minhag["tzeis"])
+    candle_list = []
+    tzeis_list = []
 
-    # =====================================================
-    # OPTIONS (LOXONE RADIO UI)
-    # =====================================================
+    for m in candle_options:
+        t = before(sunset, m)
+        candle_list.append({
+            "id": f"c{m}",
+            "label": f"{m} min before sunset",
+            "time": fmt(t),
+            "ts": ts(t)
+        })
 
-    start_options = [
-        {
-            "id": f"candle_{m}",
-            "label": f"Candle {m} min before sunset",
-            "time": fmt(before(sunset, m)),
-            "ts": ts(before(sunset, m))
-        }
-        for m in START_OPTIONS
-    ]
-
-    end_options = [
-        {
-            "id": f"tzeis_{m}",
-            "label": f"Tzeis {m} min after sunset",
-            "time": fmt(after(sunset, m)),
-            "ts": ts(after(sunset, m))
-        }
-        for m in END_OPTIONS
-    ]
-
-    # defaults
-    default_start = min(start_options, key=lambda x: x["ts"])
-    default_end = max(end_options, key=lambda x: x["ts"])
+    for m in tzeis_options:
+        t = after(sunset, m)
+        tzeis_list.append({
+            "id": f"t{m}",
+            "label": f"{m} min after sunset",
+            "time": fmt(t),
+            "ts": ts(t)
+        })
 
     # =====================================================
-    # OUTPUT (LOXONE READY)
+    # RESPONSE (FULL DATA ONLY)
     # =====================================================
 
     return {
@@ -149,56 +110,59 @@ def calculate_zmanim(config, date_obj):
         "astronomy": {
             "sunrise": fmt(sunrise),
             "sunset": fmt(sunset),
-            "netz_hachama": fmt(netz_hachama),
+            "netz_hachama": fmt(netz),
             "sunrise_ts": ts(sunrise),
             "sunset_ts": ts(sunset)
         },
 
         "halacha": {
-            "chatzos": fmt(chazos),
+            "chatzos": fmt(chatzos),
             "plag_hamincha": fmt(plag),
 
             "sof_zman_krias_shema": {
-                "gra": {
-                    "time": fmt(sof_shema_gra),
-                    "ts": ts(sof_shema_gra)
-                },
-                "magen_avraham": {
-                    "time": fmt(sof_shema_ma),
-                    "ts": ts(sof_shema_ma)
-                }
+                "gra": fmt(sof_shema_gra),
+                "magen_avraham": fmt(sof_shema_ma)
             },
 
             "sof_zman_tefila": {
-                "gra": {
-                    "time": fmt(sof_tefila_gra),
-                    "ts": ts(sof_tefila_gra)
-                },
-                "magen_avraham": {
-                    "time": fmt(sof_tefila_ma),
-                    "ts": ts(sof_tefila_ma)
-                }
+                "gra": fmt(sof_tefila_gra),
+                "magen_avraham": fmt(sof_tefila_ma)
             }
         },
 
-        "shabbat": {
-            "candle_lighting": {
-                "time": fmt(candle_lighting),
-                "ts": ts(candle_lighting)
-            },
-            "tzeis": {
-                "time": fmt(tzeis),
-                "ts": ts(tzeis)
-            }
-        },
-
-        "options": {
-            "start": start_options,
-            "end": end_options
-        },
-
-        "defaults": {
-            "start": default_start,
-            "end": default_end
+        "shabbat_options": {
+            "candle_lighting": candle_list,
+            "tzeis": tzeis_list
         }
     }
+
+
+# =========================================================
+# API ENDPOINT
+# =========================================================
+
+@app.route("/zmanim", methods=["GET"])
+def zmanim():
+
+    y = int(request.args.get("y"))
+    m = int(request.args.get("m"))
+    d = int(request.args.get("d"))
+
+    date_obj = datetime(y, m, d)
+
+    config = {
+        "city": request.args.get("city", "Brussels"),
+        "timezone": request.args.get("tz", "Europe/Brussels"),
+        "latitude": request.args.get("lat", 50.85),
+        "longitude": request.args.get("lon", 4.35)
+    }
+
+    return jsonify(calculate_all_times(date_obj, config))
+
+
+# =========================================================
+# RUN SERVER
+# =========================================================
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)

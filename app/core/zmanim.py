@@ -240,11 +240,11 @@ def calculate_zmanim(config, date_obj):
 
             "plag_hamincha": {
 
-                "gra": zman_object(
+                "plag_gra": zman_object(
                     plag_hamincha_gra
                 ),
 
-                "magen_avraham": zman_object(
+                "plag_magen_avraham": zman_object(
                     plag_hamincha_ma
                 )
             },

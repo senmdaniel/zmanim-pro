@@ -85,13 +85,29 @@ def calculate_zmanim(config, date_obj):
     sunset = s["sunset"]
 
     # =====================================================
-    # HALACHIC CORE
+    # GRA DAY
     # =====================================================
 
     day_length = sunset - sunrise
 
     shaah_zmanit = (
         day_length / 12
+    )
+
+    # =====================================================
+    # MAGEN AVRAHAM DAY
+    # =====================================================
+
+    alos_ma = before(sunrise, 72)
+
+    tzeis_ma = after(sunset, 72)
+
+    ma_day_length = (
+        tzeis_ma - alos_ma
+    )
+
+    shaah_zmanit_ma = (
+        ma_day_length / 12
     )
 
     # =====================================================
@@ -102,32 +118,46 @@ def calculate_zmanim(config, date_obj):
         day_length / 2
     )
 
-    plag_hamincha = sunset - (
+    # =====================================================
+    # PLAG HAMINCHA
+    # =====================================================
+
+    # GRA
+    plag_hamincha_gra = sunset - (
         1.25 * shaah_zmanit
+    )
+
+    # MAGEN AVRAHAM
+    plag_hamincha_ma = tzeis_ma - (
+        1.25 * shaah_zmanit_ma
     )
 
     # =====================================================
     # SOF ZMAN KRIAS SHEMA
     # =====================================================
 
+    # GRA
     sof_shema_gra = sunrise + (
         3 * shaah_zmanit
     )
 
-    sof_shema_ma = sunrise + (
-        2.4 * shaah_zmanit
+    # MAGEN AVRAHAM
+    sof_shema_ma = alos_ma + (
+        3 * shaah_zmanit_ma
     )
 
     # =====================================================
     # SOF ZMAN TFILA
     # =====================================================
 
+    # GRA
     sof_tefila_gra = sunrise + (
         4 * shaah_zmanit
     )
 
-    sof_tefila_ma = sunrise + (
-        3.2 * shaah_zmanit
+    # MAGEN AVRAHAM
+    sof_tefila_ma = alos_ma + (
+        4 * shaah_zmanit_ma
     )
 
     # =====================================================
@@ -191,7 +221,7 @@ def calculate_zmanim(config, date_obj):
     return {
 
         # =================================================
-        # CORE ZMANIM
+        # MAIN ZMANIM
         # =================================================
 
         "zmanim": {
@@ -204,9 +234,24 @@ def calculate_zmanim(config, date_obj):
                 chatzos
             ),
 
-            "plag_hamincha": zman_object(
-                plag_hamincha
-            ),
+            # =============================================
+            # PLAG HAMINCHA
+            # =============================================
+
+            "plag_hamincha": {
+
+                "gra": zman_object(
+                    plag_hamincha_gra
+                ),
+
+                "magen_avraham": zman_object(
+                    plag_hamincha_ma
+                )
+            },
+
+            # =============================================
+            # SOF ZMAN KRIAS SHEMA
+            # =============================================
 
             "sof_zman_krias_shema": {
 
@@ -218,6 +263,10 @@ def calculate_zmanim(config, date_obj):
                     sof_shema_ma
                 )
             },
+
+            # =============================================
+            # SOF ZMAN TFILA
+            # =============================================
 
             "sof_zman_tefila": {
 

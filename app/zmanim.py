@@ -5,9 +5,10 @@ import pytz
 from pyluach import dates
 
 
-# ----------------------------
+# =========================================================
 # HELPERS
-# ----------------------------
+# =========================================================
+
 def format_time(dt):
     return dt.strftime("%H:%M")
 
@@ -16,24 +17,45 @@ def to_timestamp(dt):
     return int(dt.timestamp())
 
 
-# ----------------------------
-# SAFE CONFIG PARSER
-# ----------------------------
+# =========================================================
+# SAFE CONFIG READER
+# =========================================================
+
 def get_value(config, key, default):
     value = config.get(key, default)
 
     if isinstance(value, dict):
         return value.get("minutes", default)
 
-    if isinstance(value, int) or isinstance(value, float):
+    if isinstance(value, (int, float)):
         return value
 
     return default
 
 
-# ----------------------------
+# =========================================================
+# MINHAGIM (SHABBES LOGICA)
+# =========================================================
+
+START_OPTIONS = [18, 20, 30, 40]
+END_OPTIONS = [42, 50, 72, 90]
+
+MINHAGIM = {
+    "standard_18": {"candle": 18, "tzeis": 42},
+    "standard_20": {"candle": 20, "tzeis": 42},
+    "standard_30": {"candle": 30, "tzeis": 50},
+    "standard_40": {"candle": 40, "tzeis": 50},
+
+    "rabbeinu_tam": {"candle": 18, "tzeis": 72},
+    "chazon_ish": {"candle": 30, "tzeis": 90},
+    "yerushalayim": {"candle": 40, "tzeis": 50}
+}
+
+
+# =========================================================
 # CORE ENGINE
-# ----------------------------
+# =========================================================
+
 def calculate_zmanim(config, d):
 
     city = config.get("city", "unknown")
@@ -53,7 +75,7 @@ def calculate_zmanim(config, d):
     sunset = s["sunset"]
 
     # ----------------------------
-    # CORE HALACHA TIMES
+    # HALACHIC BASE CALCULATION
     # ----------------------------
     day_length = sunset - sunrise
     shaah_zmanit = day_length / 12
@@ -62,18 +84,47 @@ def calculate_zmanim(config, d):
     plag = sunset - (1.25 * shaah_zmanit)
 
     # ----------------------------
-    # SAFE CONFIG VALUES
+    # MINHAG SELECTION
     # ----------------------------
-    alos_min = get_value(config, "alos", 72)
-    tzeis_min = get_value(config, "tzeis", 40)
-    candle_min = get_value(config, "candle_lighting", 18)
+    minhag_key = config.get("minhag", "standard_18")
+    minhag = MINHAGIM.get(minhag_key, MINHAGIM["standard_18"])
+
+    candle_offset = minhag["candle"]
+    tzeis_offset = minhag["tzeis"]
 
     # ----------------------------
-    # TIMES
+    # BASE TIMES
     # ----------------------------
+    alos_min = get_value(config, "alos", 72)
+
     alos = sunrise - timedelta(minutes=alos_min)
-    tzeis = sunset + timedelta(minutes=tzeis_min)
-    candle = sunset - timedelta(minutes=candle_min)
+    tzeis = sunset + timedelta(minutes=tzeis_offset)
+    candle = sunset - timedelta(minutes=candle_offset)
+
+    # ----------------------------
+    # SHABBES OPTIONS (START + END)
+    # ----------------------------
+
+    start_times = {}
+    end_times = {}
+
+    for m in START_OPTIONS:
+        t = sunset - timedelta(minutes=m)
+        start_times[str(m)] = {
+            "time": format_time(t),
+            "ts": to_timestamp(t)
+        }
+
+    for m in END_OPTIONS:
+        t = sunset + timedelta(minutes=m)
+        end_times[str(m)] = {
+            "time": format_time(t),
+            "ts": to_timestamp(t)
+        }
+
+    # earliest / latest helpers
+    start_times["earliest"] = min(start_times.values(), key=lambda x: x["ts"])
+    end_times["latest"] = max(end_times.values(), key=lambda x: x["ts"])
 
     # ----------------------------
     # OUTPUT
@@ -82,7 +133,7 @@ def calculate_zmanim(config, d):
         "city": city,
         "date": d.isoformat(),
 
-        # CORE
+        # CORE TIMES
         "sunrise": format_time(sunrise),
         "sunset": format_time(sunset),
         "shkia": format_time(sunset),
@@ -99,12 +150,22 @@ def calculate_zmanim(config, d):
         "sunset_ts": to_timestamp(sunset),
         "plag_ts": to_timestamp(plag),
         "tzeis_ts": to_timestamp(tzeis),
+
+        # MINHAG INFO
+        "minhag": minhag_key,
+
+        # SHABBES OPTIONS (Loxone core feature)
+        "shabbes": {
+            "start": start_times,
+            "end": end_times
+        }
     }
 
 
-# ----------------------------
+# =========================================================
 # HEBREW DATE
-# ----------------------------
+# =========================================================
+
 def get_hebrew_date(d):
     g = dates.GregorianDate(d.year, d.month, d.day)
     h = g.to_heb()
@@ -114,88 +175,4 @@ def get_hebrew_date(d):
         "hebrew_day": h.day,
         "hebrew_month": h.month,
         "hebrew_year": h.year
-    }
-
-
-# ----------------------------
-# HOLIDAY ENGINE
-# ----------------------------
-def get_holiday_info(d):
-
-    g = dates.GregorianDate(d.year, d.month, d.day)
-    h = g.to_heb()
-
-    yom_tov_days = {
-         (1, 14): ("12_erev_pesach", "Pesach", 1),
-        (1, 15): ("13_pesach 1", "Pesach", 1),
-        (1, 16): ("14_pesach 2", "Pesach", 1),
-        (1, 20): ("15_erev_pesach_6", "Pesach", 1),
-        (1, 21): ("16_pesach 7", "Pesach", 1),
-        (1, 22): ("17_pesach 8", "Pesach", 1),
-
-        (3, 5): ("18_erev shavuot", "Shavuot", 1),
-        (3, 6): ("19_shavuot 1", "Shavuot", 1),
-        (3, 7): ("20_shavuot 2", "Shavuot", 1),
-
-        (6, 29): ("1_erev_rosh_hashanah 1", "Rosh Hashanah", 1),
-        (7, 1): ("2_rosh_hashanah 1", "Rosh Hashanah", 1),
-        (7, 2): ("3_rosh_hashanah 2", "Rosh Hashanah", 1),
-
-        (7, 9): ("4_erev_yom_kippur", "Yom Kippur", 1),
-        (7, 10): ("5_yom_kippur", "Yom Kippur", 1),
-
-        (7, 14): ("6_erev_sukkot 1", "Sukkot", 1),
-        (7, 15): ("7_sukkot 1", "Sukkot", 1),
-        (7, 16): ("8_sukkot 2", "Sukkot", 1),
-        (7, 21): ("9_erev_shemini_atzeret", "Shemini Atzeret", 1),
-        (7, 22): ("10_shemini_atzeret", "Shemini Atzeret", 1),
-        (7, 23): ("11_simchat_torah", "Simchat Torah", 1),
-    }
-
-    key = (h.month, h.day)
-
-    # ----------------------------
-    # YOM TOV
-    # ----------------------------
-    if key in yom_tov_days:
-        hk, name, day_index = yom_tov_days[key]
-
-        return {
-            "is_yom_tov": True,
-            "is_erev_yom_tov": False,
-            "holiday_key": hk,
-            "holiday_name": name,
-            "type": "yom_tov",
-            "day_index": day_index
-        }
-
-    # ----------------------------
-    # EREV YOM TOV
-    # ----------------------------
-    tomorrow = d.fromordinal(d.toordinal() + 1)
-    tg = dates.GregorianDate(tomorrow.year, tomorrow.month, tomorrow.day)
-    th = tg.to_heb()
-
-    if (th.month, th.day) in yom_tov_days:
-        hk, name, _ = yom_tov_days[(th.month, th.day)]
-
-        return {
-            "is_yom_tov": False,
-            "is_erev_yom_tov": True,
-            "holiday_key": hk,
-            "holiday_name": f"Erev {name}",
-            "type": "erev_yom_tov",
-            "day_index": 0
-        }
-
-    # ----------------------------
-    # NORMAL DAY
-    # ----------------------------
-    return {
-        "is_yom_tov": False,
-        "is_erev_yom_tov": False,
-        "holiday_key": f" 0 ",
-        "holiday_name": None,
-        "type": None,
-        "day_index": None
     }

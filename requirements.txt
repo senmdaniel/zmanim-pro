@@ -2,3 +2,4 @@ flask
 pyluach
 astral
 pytz
+requirements.txt

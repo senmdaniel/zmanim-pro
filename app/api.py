@@ -15,7 +15,7 @@ app = Flask(__name__)
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status": "ok"
+        "status": "ok!!!!!!!!!"
     })
 
 
@@ -44,7 +44,7 @@ def api():
         # -------------------------------------------------
         # 4. EVENTS (YOMIM TOVIM)
         # -------------------------------------------------
-        event = get_event(
+        "event": event if event else 0,
             hebrew["hebrew_month"],
             hebrew["hebrew_day"]
         )

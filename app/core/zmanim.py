@@ -12,11 +12,27 @@ UTC = pytz.UTC
 
 
 def fmt(dt):
+    """
+    Format datetime -> HH:MM
+    """
     return dt.strftime("%H:%M")
 
 
-def ts(dt):
-    return int(dt.astimezone(UTC).timestamp())
+def sec_from_midnight(dt):
+    """
+    Seconds since midnight
+
+    Example:
+    01:00 = 3600
+    12:00 = 43200
+    18:30 = 66600
+    """
+
+    return (
+        dt.hour * 3600 +
+        dt.minute * 60 +
+        dt.second
+    )
 
 
 def before(dt, minutes):
@@ -27,106 +43,220 @@ def after(dt, minutes):
     return dt + timedelta(minutes=minutes)
 
 
+def zman_object(dt):
+    """
+    Standard output object
+    """
+
+    return {
+        "time": fmt(dt),
+        "sec": sec_from_midnight(dt)
+    }
+
+
 # =========================================================
-# MAIN FUNCTION (IMPORTANT: MATCHS api.py)
+# MAIN ENGINE
 # =========================================================
 
 def calculate_zmanim(config, date_obj):
-    """
-    Main entry point used by api.py
-    MUST stay stable (contract function)
-    """
 
-    tz = pytz.timezone(config.get("timezone", "UTC"))
+    # =====================================================
+    # CONFIG
+    # =====================================================
+
+    timezone_name = config.get(
+        "timezone",
+        "UTC"
+    )
+
+    tz = pytz.timezone(timezone_name)
 
     location = LocationInfo(
         name=config.get("city", "unknown"),
         region="",
-        timezone=str(tz),
+        timezone=timezone_name,
         latitude=float(config.get("latitude", 0)),
         longitude=float(config.get("longitude", 0))
     )
 
     # =====================================================
-    # SUN DATA
+    # SUN TIMES
     # =====================================================
-    s = sun(location.observer, date=date_obj, tzinfo=tz)
+
+    s = sun(
+        location.observer,
+        date=date_obj,
+        tzinfo=tz
+    )
 
     sunrise = s["sunrise"]
     sunset = s["sunset"]
 
     # =====================================================
-    # CORE HALACHIC CALCULATIONS
+    # HALACHIC CORE
     # =====================================================
+
     day_length = sunset - sunrise
-    shaah_zmanit = day_length / 12
 
+    shaah_zmanit = (
+        day_length / 12
+    )
+
+    # Main zmanim
     netz_hachama = sunrise
-    chatzos = sunrise + (day_length / 2)
-    plag_hamincha = sunset - (1.25 * shaah_zmanit)
 
-    # Sof zmanim (2 opinions)
-    sof_shema_gra = sunrise + (3 * shaah_zmanit)
-    sof_shema_ma = sunrise + (2.4 * shaah_zmanit)
+    chatzos = sunrise + (
+        day_length / 2
+    )
 
-    sof_tefila_gra = sof_shema_gra
-    sof_tefila_ma = sof_shema_ma
+    plag_hamincha = sunset - (
+        1.25 * shaah_zmanit
+    )
 
     # =====================================================
-    # SHABBAT OPTIONS (NO DECISION LOGIC)
+    # SOF ZMAN KRIAS SHEMA
     # =====================================================
-    candle_options = [18, 20, 30, 40]
-    tzeis_options = [42, 50, 72, 90]
 
-    candle_list = [
-        {
+    sof_shema_gra = sunrise + (
+        3 * shaah_zmanit
+    )
+
+    sof_shema_ma = sunrise + (
+        2.4 * shaah_zmanit
+    )
+
+    # =====================================================
+    # SOF ZMAN TFILA
+    # =====================================================
+
+    sof_tefila_gra = sunrise + (
+        4 * shaah_zmanit
+    )
+
+    sof_tefila_ma = sunrise + (
+        3.2 * shaah_zmanit
+    )
+
+    # =====================================================
+    # SHABBAT OPTIONS
+    # =====================================================
+
+    candle_options = [
+        18,
+        20,
+        30,
+        40
+    ]
+
+    tzeis_options = [
+        42,
+        50,
+        72,
+        90
+    ]
+
+    # =====================================================
+    # CANDLE LIGHTING OPTIONS
+    # =====================================================
+
+    candle_list = []
+
+    for m in candle_options:
+
+        t = before(sunset, m)
+
+        candle_list.append({
             "id": f"c{m}",
+            "minutes": m,
             "label": f"{m} min before sunset",
-            "time": fmt(before(sunset, m)),
-            "ts": ts(before(sunset, m))
-        }
-        for m in candle_options
-    ]
+            "time": fmt(t),
+            "sec": sec_from_midnight(t)
+        })
 
-    tzeis_list = [
-        {
+    # =====================================================
+    # TZEIS OPTIONS
+    # =====================================================
+
+    tzeis_list = []
+
+    for m in tzeis_options:
+
+        t = after(sunset, m)
+
+        tzeis_list.append({
             "id": f"t{m}",
+            "minutes": m,
             "label": f"{m} min after sunset",
-            "time": fmt(after(sunset, m)),
-            "ts": ts(after(sunset, m))
-        }
-        for m in tzeis_options
-    ]
+            "time": fmt(t),
+            "sec": sec_from_midnight(t)
+        })
 
     # =====================================================
-    # OUTPUT (STABLE CONTRACT FOR api.py)
+    # FINAL OUTPUT
     # =====================================================
+
     return {
+
+        # =================================================
+        # ASTRONOMY
+        # =================================================
+
         "astronomy": {
-            "sunrise": fmt(sunrise),
-            "sunset": fmt(sunset),
-            "netz_hachama": fmt(netz_hachama),
-            "sunrise_ts": ts(sunrise),
-            "sunset_ts": ts(sunset)
+
+            "sunrise": zman_object(sunrise),
+
+            "sunset": zman_object(sunset),
+
+            "netz_hachama": zman_object(
+                netz_hachama
+            )
         },
 
+        # =================================================
+        # HALACHA
+        # =================================================
+
         "halacha": {
-            "chatzos": fmt(chatzos),
-            "plag_hamincha": fmt(plag_hamincha),
+
+            "chatzos": zman_object(
+                chatzos
+            ),
+
+            "plag_hamincha": zman_object(
+                plag_hamincha
+            ),
 
             "sof_zman_krias_shema": {
-                "gra": fmt(sof_shema_gra),
-                "magen_avraham": fmt(sof_shema_ma)
+
+                "gra": zman_object(
+                    sof_shema_gra
+                ),
+
+                "magen_avraham": zman_object(
+                    sof_shema_ma
+                )
             },
 
             "sof_zman_tefila": {
-                "gra": fmt(sof_tefila_gra),
-                "magen_avraham": fmt(sof_tefila_ma)
+
+                "gra": zman_object(
+                    sof_tefila_gra
+                ),
+
+                "magen_avraham": zman_object(
+                    sof_tefila_ma
+                )
             }
         },
 
+        # =================================================
+        # SHABBAT OPTIONS
+        # =================================================
+
         "shabbat_options": {
+
             "candle_lighting": candle_list,
+
             "tzeis": tzeis_list
         }
     }

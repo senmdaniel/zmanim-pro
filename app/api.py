@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, request
 
 from app.core.date_provider import get_current_date
-from app.core.zmanim import calculate_zmanim, get_hebrew_date
+from app.core.zmanim import calculate_zmanim
+from app.core.hebrew_calendar import get_hebrew_date
 from app.data.events import get_event
 from app.core.config import load_config
 
@@ -26,22 +27,22 @@ def api():
 
     try:
         # -------------------------------------------------
-        # 1. DATE (single source of truth)
+        # 1. DATE (from request or system fallback)
         # -------------------------------------------------
         date = get_current_date(request)
 
         # -------------------------------------------------
-        # 2. CONFIG
+        # 2. CONFIG (city, location, etc.)
         # -------------------------------------------------
         config = load_config()
 
         # -------------------------------------------------
-        # 3. HEBREW DATE
+        # 3. HEBREW DATE (OFFLINE, CORRECT)
         # -------------------------------------------------
         hebrew = get_hebrew_date(date)
 
         # -------------------------------------------------
-        # 4. YOMIM TOVIM / EVENTS
+        # 4. EVENTS (YOMIM TOVIM)
         # -------------------------------------------------
         event = get_event(
             hebrew["hebrew_month"],
@@ -49,7 +50,7 @@ def api():
         )
 
         # -------------------------------------------------
-        # 5. ZMANIM
+        # 5. ZMANIM CALCULATION
         # -------------------------------------------------
         zmanim = calculate_zmanim(config, date)
 
@@ -80,3 +81,10 @@ def api():
             "status": "error",
             "error": str(e)
         }), 500
+
+
+# =========================================================
+# OPTIONAL: expose app for run.py
+# =========================================================
+def get_app():
+    return app

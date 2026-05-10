@@ -1,1 +1,14 @@
-
+{
+  "2026-05-05": {
+    "holiday": "Lag BaOmer",
+    "type": "special_day",
+    "plag_hamincha": "18:42",
+    "tzeis": "21:31"
+  },
+  "2026-04-12": {
+    "holiday": "Pesach",
+    "type": "yom_tov",
+    "plag_hamincha": "18:30",
+    "tzeis": "21:10"
+  }
+}

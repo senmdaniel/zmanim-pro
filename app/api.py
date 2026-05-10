@@ -22,6 +22,30 @@ def health():
 # =========================================================
 # MAIN API ENDPOINT
 # =========================================================
+from flask import Flask, jsonify, request
+
+from app.core.date_provider import get_current_date
+from app.core.zmanim import calculate_zmanim
+from app.core.hebrew_calendar import get_hebrew_date
+from app.data.events import get_event
+from app.core.config import load_config
+
+app = Flask(__name__)
+
+
+# =========================================================
+# HEALTH CHECK
+# =========================================================
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({
+        "status": "ok!!!!!!!!!"
+    })
+
+
+# =========================================================
+# MAIN API ENDPOINT
+# =========================================================
 @app.route("/api", methods=["GET"])
 def api():
 

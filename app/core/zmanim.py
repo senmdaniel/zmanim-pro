@@ -15,14 +15,6 @@ def fmt(dt):
     return dt.strftime("%H:%M")
 
 
-def sec_from_midnight(dt):
-    return (
-        dt.hour * 3600 +
-        dt.minute * 60 +
-        dt.second
-    )
-
-
 def ts(dt):
     return int(dt.astimezone(UTC).timestamp())
 
@@ -37,12 +29,11 @@ def after(dt, minutes):
 
 def zman_object(dt):
     """
-    Full object for automation + UI
+    Minimal clean output for automation
     """
 
     return {
         "time": fmt(dt),
-        "sec": sec_from_midnight(dt),
         "ts": ts(dt)
     }
 
@@ -87,7 +78,6 @@ def calculate_zmanim(config, date_obj):
     # =====================================================
 
     day_length = sunset - sunrise
-
     shaah_zmanit = day_length / 12
 
     # =====================================================
@@ -98,7 +88,6 @@ def calculate_zmanim(config, date_obj):
     tzeis_ma = after(sunset, 72)
 
     ma_day_length = tzeis_ma - alos_ma
-
     shaah_zmanit_ma = ma_day_length / 12
 
     # =====================================================
@@ -112,7 +101,6 @@ def calculate_zmanim(config, date_obj):
     # =====================================================
 
     plag_gra = sunset - (1.25 * shaah_zmanit)
-
     plag_ma = tzeis_ma - (1.25 * shaah_zmanit_ma)
 
     # =====================================================
@@ -142,7 +130,6 @@ def calculate_zmanim(config, date_obj):
             "minutes": m,
             "label": f"{m} min before shkia",
             "time": fmt(before(sunset, m)),
-            "sec": sec_from_midnight(before(sunset, m)),
             "ts": ts(before(sunset, m))
         }
         for m in candle_options
@@ -154,7 +141,6 @@ def calculate_zmanim(config, date_obj):
             "minutes": m,
             "label": f"{m} min after shkia",
             "time": fmt(after(sunset, m)),
-            "sec": sec_from_midnight(after(sunset, m)),
             "ts": ts(after(sunset, m))
         }
         for m in tzeis_options
@@ -170,7 +156,7 @@ def calculate_zmanim(config, date_obj):
 
             "shkia": zman_object(sunset),
 
-            "chatzos": zman_object(chazos := chatzos),
+            "chatzos": zman_object(chatzos),
 
             "plag_hamincha": {
                 "gra": zman_object(plag_gra),

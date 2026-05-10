@@ -8,9 +8,6 @@ import pytz
 # HELPERS
 # =========================================================
 
-UTC = pytz.UTC
-
-
 def fmt(dt):
     """
     Format datetime -> HH:MM
@@ -21,11 +18,6 @@ def fmt(dt):
 def sec_from_midnight(dt):
     """
     Seconds since midnight
-
-    Example:
-    01:00 = 3600
-    12:00 = 43200
-    18:30 = 66600
     """
 
     return (
@@ -45,7 +37,7 @@ def after(dt, minutes):
 
 def zman_object(dt):
     """
-    Standard output object
+    Standard zman object
     """
 
     return {
@@ -80,7 +72,7 @@ def calculate_zmanim(config, date_obj):
     )
 
     # =====================================================
-    # SUN TIMES
+    # SUN DATA
     # =====================================================
 
     s = sun(
@@ -102,8 +94,9 @@ def calculate_zmanim(config, date_obj):
         day_length / 12
     )
 
-    # Main zmanim
-    netz_hachama = sunrise
+    # =====================================================
+    # MAIN ZMANIM
+    # =====================================================
 
     chatzos = sunrise + (
         day_length / 2
@@ -168,7 +161,7 @@ def calculate_zmanim(config, date_obj):
         candle_list.append({
             "id": f"c{m}",
             "minutes": m,
-            "label": f"{m} min before sunset",
+            "label": f"{m} min before shkia",
             "time": fmt(t),
             "sec": sec_from_midnight(t)
         })
@@ -186,7 +179,7 @@ def calculate_zmanim(config, date_obj):
         tzeis_list.append({
             "id": f"t{m}",
             "minutes": m,
-            "label": f"{m} min after sunset",
+            "label": f"{m} min after shkia",
             "time": fmt(t),
             "sec": sec_from_midnight(t)
         })
@@ -198,25 +191,14 @@ def calculate_zmanim(config, date_obj):
     return {
 
         # =================================================
-        # ASTRONOMY
+        # CORE ZMANIM
         # =================================================
 
-        "astronomy": {
+        "zmanim": {
 
-            "sunrise": zman_object(sunrise),
-
-            "sunset": zman_object(sunset),
-
-            "netz_hachama": zman_object(
-                netz_hachama
-            )
-        },
-
-        # =================================================
-        # HALACHA
-        # =================================================
-
-        "halacha": {
+            "shkia": zman_object(
+                sunset
+            ),
 
             "chatzos": zman_object(
                 chatzos

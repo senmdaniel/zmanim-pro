@@ -140,8 +140,8 @@ def calculate_zmanim(config, date_obj):
             "id": f"t{m}",
             "minutes": m,
             "label": f"{m} min after shkia",
-            "time": fmt(after(sunset, m)),
-            "ts": ts(after(sunset, m))
+            "ts": ts(after(sunset, m)),
+            "time": fmt(after(sunset, m))
         }
         for m in tzeis_options
     ]

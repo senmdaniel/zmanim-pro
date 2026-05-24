@@ -42,7 +42,7 @@ def api():
         )
 
         if event is None:
-            event = 0
+            event = "0"
 
         # 5. ZMANIM
         zmanim = calculate_zmanim(config, date)
